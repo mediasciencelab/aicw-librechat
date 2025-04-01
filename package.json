@@ -70,7 +70,8 @@
     "b:test:api": "cd api && bun run b:test",
     "b:balance": "bun config/add-balance.js",
     "b:list-balances": "bun config/list-balances.js",
-    "reset-terms": "node config/reset-terms.js"
+    "reset-terms": "node config/reset-terms.js",
+    "dev": "sst bind next dev"
   },
   "repository": {
     "type": "git",
@@ -111,7 +112,10 @@
     "prettier": "^3.5.0",
     "prettier-eslint": "^16.3.0",
     "prettier-plugin-tailwindcss": "^0.6.11",
-    "typescript-eslint": "^8.24.0"
+    "typescript-eslint": "^8.24.0",
+    "sst": "^2",
+    "aws-cdk-lib": "2.179.0",
+    "constructs": "10.3.0"
   },
   "overrides": {
     "axios": "1.8.2",
