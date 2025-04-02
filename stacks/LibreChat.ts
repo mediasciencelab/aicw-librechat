@@ -1,8 +1,8 @@
+import { Cluster, ContainerImage } from 'aws-cdk-lib/aws-ecs';
+import { Vpc, SubnetType } from 'aws-cdk-lib/aws-ec2';
 import * as sst from "sst/constructs";
-import {setStandardTags} from "./tags";
 import { Service } from "sst/constructs";
-import { Cluster } from "aws-cdk-lib/aws-ecs";
-import { Vpc } from 'aws-cdk-lib/aws-ec2';
+import {setStandardTags} from "./tags";
 
 export function LibreChat({ stack }: sst.StackContext) {
   setStandardTags(stack);
@@ -14,6 +14,20 @@ export function LibreChat({ stack }: sst.StackContext) {
 
   const cluster = new Cluster(stack, "Cluster", {
     vpc,
+  })
+
+  const mongodb = new Service(stack, "MongoDB", {
+    port: 27017,
+    cdk: {
+      cluster,
+      vpc,
+      container: {
+        image: ContainerImage.fromRegistry(
+          "public.ecr.aws/docker/library/mongo:latest")
+      },
+      applicationLoadBalancer: false,
+      cloudfrontDistribution: false
+    },
   })
 
   // Export values from cloudformation template.
