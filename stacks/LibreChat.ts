@@ -1,28 +1,28 @@
-import { Cluster, ContainerImage } from 'aws-cdk-lib/aws-ecs';
-import { Vpc } from 'aws-cdk-lib/aws-ec2';
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as sst from "sst/constructs";
-import { Service } from "sst/constructs";
+import * as constructs from "sst/constructs";
 import {setStandardTags} from "./tags";
 
 export function LibreChat({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const vpc = new Vpc(stack, "Vpc", {
+  const vpc = new ec2.Vpc(stack, "Vpc", {
     maxAzs: 1,
     natGateways: 1,
   });
 
-  const cluster = new Cluster(stack, "Cluster", {
+  const cluster = new ecs.Cluster(stack, "Cluster", {
     vpc,
   })
 
-  const mongodb = new Service(stack, "MongoDB", {
+  const mongodb = new constructs.Service(stack, "MongoDB", {
     port: 27017,
     cdk: {
       cluster,
       vpc,
       container: {
-        image: ContainerImage.fromRegistry(
+        image: ecs.ContainerImage.fromRegistry(
           "public.ecr.aws/docker/library/mongo:latest"),
           command: ["mongod", "--noauth"],
       },
