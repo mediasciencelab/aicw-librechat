@@ -1,5 +1,5 @@
 import { Cluster, ContainerImage } from 'aws-cdk-lib/aws-ecs';
-import { Vpc, SubnetType } from 'aws-cdk-lib/aws-ec2';
+import { Vpc } from 'aws-cdk-lib/aws-ec2';
 import * as sst from "sst/constructs";
 import { Service } from "sst/constructs";
 import {setStandardTags} from "./tags";
