@@ -23,7 +23,8 @@ export function LibreChat({ stack }: sst.StackContext) {
       vpc,
       container: {
         image: ContainerImage.fromRegistry(
-          "public.ecr.aws/docker/library/mongo:latest")
+          "public.ecr.aws/docker/library/mongo:latest"),
+          command: ["mongod", "--noauth"],
       },
       applicationLoadBalancer: false,
       cloudfrontDistribution: false
