@@ -1,7 +1,8 @@
+import * as constructs from "sst/constructs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as efs from "aws-cdk-lib/aws-efs";
 import * as sst from "sst/constructs";
-import * as constructs from "sst/constructs";
 import {setStandardTags} from "./tags";
 
 export function LibreChat({ stack }: sst.StackContext) {
@@ -24,10 +25,24 @@ export function LibreChat({ stack }: sst.StackContext) {
       container: {
         image: ecs.ContainerImage.fromRegistry(
           "public.ecr.aws/docker/library/mongo:latest"),
-          command: ["mongod", "--noauth"],
+        command: ["mongod", "--noauth"],
       },
       applicationLoadBalancer: false,
       cloudfrontDistribution: false
+    },
+  })
+
+  const mongoEfsVolume = new efs.FileSystem(stack, "MongoEFSVolume", {
+    vpc,
+
+  })
+
+  mongodb.cdk.fargateService.taskDefinition.addVolume({
+    name: "mongo-data",
+    configuredAtLaunch: true,
+    efsVolumeConfiguration: {
+      fileSystemId: mongoEfsVolume.fileSystemId,
+      rootDirectory: "/data/db",
     },
   })
 
