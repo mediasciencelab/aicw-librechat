@@ -1,0 +1,17 @@
+
+[Unit]
+Description = chat-libre
+
+[Service]
+Type           = oneshot
+User           = ubuntu
+Group          = ubuntu
+LimitNOFILE    = 4096
+Restart        = always
+RestartSec     = 5s
+StandardOutput = append:/var/log/errors.log
+StandardError  = append:/var/log/errors.log
+ExecStart      = docker compose up -d --pull never -f /ubuntu/docker-compose.mediasci.yml
+
+[Install]
+WantedBy = multi-user.target
