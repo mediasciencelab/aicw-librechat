@@ -4,6 +4,7 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
+import { LibreChatStorage } from './LibreChatStorage';
 
 export function LibreChat({ stack }: sst.StackContext) {
   setStandardTags(stack);
@@ -23,6 +24,8 @@ export function LibreChat({ stack }: sst.StackContext) {
     validation: certificatemanager.CertificateValidation.fromDns(hostedZone),
   });
 
+  const { ebsVolume } = sst.use(LibreChatStorage);
+
   const instance = new ec2.Instance(stack, 'LibreChatInstance', {
     vpc,
     instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
@@ -34,6 +37,13 @@ export function LibreChat({ stack }: sst.StackContext) {
         'tag:mediasci:project': ['aicw'],
       },
     }),
+    propagateTagsToVolumeOnCreation: true,
+  });
+
+  const volumeAttachment = new ec2.CfnVolumeAttachment(stack, 'VolumeAttachment', {
+    instanceId: instance.instanceId,
+    volumeId: ebsVolume.volumeId,
+    device: '/dev/sda2',
   });
 
   // Export values from cloudformation template.
