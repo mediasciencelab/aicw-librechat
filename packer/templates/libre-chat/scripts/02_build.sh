@@ -12,5 +12,6 @@ rm /var/tmp/libre-chat.image.tar.gz || exit 1
 
 sudo docker pull mongo:latest || exit 1
 
+sudo cp /var/tmp/001-firstrun.sh /var/lib/cloud/scripts/per-instance/001-firstrun.sh || exit 1
+sudo chmod +x /var/lib/cloud/scripts/per-instance/001-firstrun.sh || exit 1
 sudo cp /var/tmp/libre-chat.service /etc/systemd/system/libre-chat.service || exit 1
-sudo systemctl enable libre-chat.service

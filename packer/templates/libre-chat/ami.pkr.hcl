@@ -1,7 +1,7 @@
 
 variable "region" {
   type    = string
-  default = "us-east-1"
+  default = "eu-central-1"
 }
 
 variable "env" {
@@ -31,7 +31,7 @@ locals {
 source "amazon-ebs" "ubuntu-x86_64" {
   ami_name        = "aiwc-librechat-${local.version_tag}"
   ami_description = "LibreChat running on Amazon Linux for AICW project"
-  instance_type   = "t3.medium"
+  instance_type   = "t3.large"
   region          = var.region
   source_ami_filter {
     filters = {
@@ -80,6 +80,11 @@ build {
     destination = "/var/tmp/libre-chat.image.tar.gz"
     source      = "build/libre-chat.image.tar.gz"
     generated   = true
+  }
+
+  provisioner "file" {
+    destination = "/var/tmp/001-firstrun.sh"
+    source      = "${path.root}/files/001-firstrun.sh"
   }
 
   provisioner "file" {
