@@ -11,6 +11,10 @@ export function LibreChat({ stack }: sst.StackContext) {
 
   const { ebsVolume } = sst.use(LibreChatStorage);
 
+  const keyPair = new ec2.KeyPair(stack, 'KeyPair', {
+    keyPairName: `aiwc-librechat-${stack.stage}`,
+  });
+
   const instance = new ec2.Instance(stack, 'LibreChatInstance', {
     vpc,
     instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
@@ -23,9 +27,16 @@ export function LibreChat({ stack }: sst.StackContext) {
       },
     }),
     propagateTagsToVolumeOnCreation: true,
+    keyPair: keyPair,
+    vpcSubnets: {
+      subnetType: ec2.SubnetType.PUBLIC,
+    },
+    associatePublicIpAddress: false,
   });
 
-  const volumeAttachment = new ec2.CfnVolumeAttachment(stack, 'VolumeAttachment', {
+  instance.connections.allowFromAnyIpv4(ec2.Port.tcp(22), 'Allow SSH access from anywhere');
+
+  new ec2.CfnVolumeAttachment(stack, 'VolumeAttachment', {
     instanceId: instance.instanceId,
     volumeId: ebsVolume.volumeId,
     device: '/dev/sda2',
@@ -36,5 +47,6 @@ export function LibreChat({ stack }: sst.StackContext) {
     vpcId: vpc.vpcId,
     instanceId: instance.instanceId,
     certificateArn: certificate.certificateArn,
+    keyPairPrivateKeyParameter: keyPair.privateKey.parameterName,
   });
 }
