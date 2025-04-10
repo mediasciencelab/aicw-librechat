@@ -1,6 +1,7 @@
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
+import { LibreChatStatic } from './LibreChatStatic';
 import { LibreChatStorage } from './LibreChatStorage';
 import { Network } from './Network';
 
@@ -9,11 +10,9 @@ export function LibreChat({ stack }: sst.StackContext) {
 
   const { vpc, certificate } = sst.use(Network);
 
-  const { ebsVolume } = sst.use(LibreChatStorage);
+  const { keyPair, libreChatIpAddress } = sst.use(LibreChatStatic);
 
-  const keyPair = new ec2.KeyPair(stack, 'KeyPair', {
-    keyPairName: `aiwc-librechat-${stack.stage}`,
-  });
+  const { ebsVolume } = sst.use(LibreChatStorage);
 
   const instance = new ec2.Instance(stack, 'LibreChatInstance', {
     vpc,
@@ -31,10 +30,14 @@ export function LibreChat({ stack }: sst.StackContext) {
     vpcSubnets: {
       subnetType: ec2.SubnetType.PUBLIC,
     },
-    associatePublicIpAddress: false,
   });
 
   instance.connections.allowFromAnyIpv4(ec2.Port.tcp(22), 'Allow SSH access from anywhere');
+
+  new ec2.CfnEIPAssociation(stack, 'LibreChatEIPAssociation', {
+    allocationId: libreChatIpAddress.attrAllocationId,
+    instanceId: instance.instanceId,
+  });
 
   new ec2.CfnVolumeAttachment(stack, 'VolumeAttachment', {
     instanceId: instance.instanceId,
