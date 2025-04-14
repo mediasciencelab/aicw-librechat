@@ -16,7 +16,7 @@ export function LibreChat({ stack }: sst.StackContext) {
 
   const instance = new ec2.Instance(stack, 'LibreChatInstance', {
     vpc,
-    instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
+    instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MEDIUM),
     machineImage: ec2.MachineImage.lookup({
       name: 'aiwc-librechat-*',
       owners: [stack.account],
@@ -42,7 +42,7 @@ export function LibreChat({ stack }: sst.StackContext) {
   new ec2.CfnVolumeAttachment(stack, 'VolumeAttachment', {
     instanceId: instance.instanceId,
     volumeId: ebsVolume.volumeId,
-    device: '/dev/sda2',
+    device: '/dev/xvdbb',
   });
 
   // Export values from cloudformation template.

@@ -1,7 +1,7 @@
 
 variable "region" {
   type    = string
-  default = "eu-central-1"
+  default = "us-east-1"
 }
 
 variable "env" {
@@ -31,12 +31,13 @@ locals {
 source "amazon-ebs" "ubuntu-x86_64" {
   ami_name        = "aiwc-librechat-${local.version_tag}"
   ami_description = "LibreChat running on Amazon Linux for AICW project"
-  instance_type   = "t3.large"
+  instance_type   = "t4g.medium"
+  spot_price      = "auto"
   region          = var.region
   source_ami_filter {
     filters = {
       virtualization-type = "hvm"
-      name                = "ubuntu-minimal/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-minimal-*"
+      name                = "ubuntu-minimal/images/hvm-ssd-gp3/ubuntu-noble-24.04-arm64-minimal-*"
       root-device-type    = "ebs"
     }
     owners = [

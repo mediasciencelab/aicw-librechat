@@ -4,11 +4,11 @@ echo "***********************************"
 echo "First Run Libre Chat"
 echo "***********************************"
 
-DEV="/dev/sda2"
-MOUNT_PATH="/ubuntu/data-node"
+DEV="/dev/nvme1n1"
+MOUNT_PATH="/home/ubuntu/data-node"
 
 # Make sure data device is formatted and mounted
-echo "$DEV $MOUNT_PATH ext4 defaults 0 0" >> /etc/fstab
+echo "$DEV $MOUNT_PATH ext4 defaults,uid=1000,gid=1000 0 0" >> /etc/fstab
 systemctl daemon-reload
 
 DEVICE_ATTACHED=false
