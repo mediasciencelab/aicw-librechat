@@ -28,12 +28,11 @@ locals {
   }
 }
 
-source "amazon-ebs" "ubuntu-x86_64" {
+source "amazon-ebs" "ubuntu" {
   ami_name        = "aiwc-librechat-${local.version_tag}"
   ami_description = "LibreChat running on Amazon Linux for AICW project"
-  instance_type   = "t4g.medium"
-  spot_price      = "auto"
-  region          = var.region
+  instance_type   = "t4g.2xlarge"
+    region          = var.region
   source_ami_filter {
     filters = {
       virtualization-type = "hvm"
@@ -45,6 +44,14 @@ source "amazon-ebs" "ubuntu-x86_64" {
     ]
     most_recent = true
   }
+
+  launch_block_device_mappings {
+    device_name = "/dev/sda1"
+    volume_size = 30
+    volume_type = "gp3"
+    delete_on_termination = true
+  }
+
   ssh_username = "ubuntu"
 
   run_tags = local.default_tags
@@ -54,12 +61,15 @@ source "amazon-ebs" "ubuntu-x86_64" {
 
 build {
   sources = [
-    "source.amazon-ebs.ubuntu-x86_64"
+    "source.amazon-ebs.ubuntu"
   ]
 
   provisioner "shell" {
     scripts = [
       "${path.root}/scripts/01_setup_machine.sh",
+    ]
+    environment_vars = [
+      "LIBRE_CHAT_ENV=${var.env}",
     ]
   }
 
@@ -67,19 +77,12 @@ build {
     inline = [
       "mkdir -p build",
       "git ls-files --cached -z | tar --null -czf build/libre-chat.tar.gz --files-from=-",
-      "docker save libre-chat:latest | gzip > build/libre-chat.image.tar.gz"
     ]
   }
 
   provisioner "file" {
     destination = "/var/tmp/libre-chat.tar.gz"
     source      = "build/libre-chat.tar.gz"
-    generated   = true
-  }
-
-  provisioner "file" {
-    destination = "/var/tmp/libre-chat.image.tar.gz"
-    source      = "build/libre-chat.image.tar.gz"
     generated   = true
   }
 

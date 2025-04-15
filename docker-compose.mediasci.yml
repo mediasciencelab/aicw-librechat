@@ -13,6 +13,7 @@ services:
       dockerfile: Dockerfile.multi
       target: api-build
     image: libre-chat
+    platform: linux/arm64
     restart: always
     user: "1000:1000"
     extra_hosts:
