@@ -96,6 +96,11 @@ build {
     source      = "${path.root}/files/libre-chat.service"
   }
 
+  provisioner "file" {
+    destination = "/var/tmp/librechat.mediasci.yaml"
+    source      = "${path.root}/files/librechat.mediasci.yaml"
+  }
+
   provisioner "shell" {
     scripts = [
       "${path.root}/scripts/02_build.sh",
