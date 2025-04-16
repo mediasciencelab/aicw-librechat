@@ -8,7 +8,7 @@ DEV="/dev/nvme1n1"
 MOUNT_PATH="/home/ubuntu/data-node"
 
 # Make sure data device is formatted and mounted
-echo "$DEV $MOUNT_PATH ext4 defaults,uid=1000,gid=1000 0 0" >> /etc/fstab
+echo "$DEV $MOUNT_PATH ext4 defaults 0 0" >> /etc/fstab
 systemctl daemon-reload
 
 DEVICE_ATTACHED=false
@@ -41,6 +41,9 @@ if [[ $MOUNT_STATUS != 0 ]]; then
   echo "Failed to mount $MOUNT_PATH" >&2
   exit 1
 fi
+
+# Make sure the mount path is owned by the ubuntu user
+chown -R 1000:1000 $MOUNT_PATH
 
 # enable and start service
 echo "Starting libre-chat service..."
