@@ -10,7 +10,7 @@ export function LibreChat({ stack }: sst.StackContext) {
 
   const { vpc, certificate } = sst.use(Network);
 
-  const { keyPair, libreChatIpAddress } = sst.use(LibreChatStatic);
+  const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(LibreChatStatic);
 
   const { ebsVolume } = sst.use(LibreChatStorage);
 
@@ -32,6 +32,8 @@ export function LibreChat({ stack }: sst.StackContext) {
       subnetType: ec2.SubnetType.PUBLIC,
     },
   });
+
+  instance.role.addManagedPolicy(secretsPolicy);
 
   instance.connections.allowFromAnyIpv4(ec2.Port.tcp(22), 'Allow SSH access from anywhere');
 
