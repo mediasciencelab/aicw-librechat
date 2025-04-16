@@ -23,6 +23,7 @@ export function LibreChat({ stack }: sst.StackContext) {
       filters: {
         [`tag:mediasci:env:${stack.stage}`]: ['true'],
         'tag:mediasci:project': ['aicw'],
+        architecture: ['arm64'],
       },
     }),
     propagateTagsToVolumeOnCreation: true,

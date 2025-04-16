@@ -14,3 +14,5 @@ sudo docker pull mongo:latest
 sudo cp /var/tmp/001-firstrun.sh /var/lib/cloud/scripts/per-instance/001-firstrun.sh
 sudo chmod +x /var/lib/cloud/scripts/per-instance/001-firstrun.sh
 sudo cp /var/tmp/libre-chat.service /etc/systemd/system/libre-chat.service
+
+mkdir -p /home/ubuntu/data-node
