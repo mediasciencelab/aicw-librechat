@@ -24,7 +24,9 @@ export function LibreChatStatic({ stack }: sst.StackContext) {
       'ssm:GetParametersByPath',
       'ssm:DescribeParameters',
     ],
-    resources: [`arn:aws:ssm:*:*:mediasci/aicw/librechat/${stack.stage}/*`],
+    resources: [
+      `arn:aws:ssm:${stack.region}:${stack.account}:parameter/mediasci/aicw/librechat/${stack.stage}/env`,
+    ],
   });
 
   const kmsKeyDecryptionPolicyStatement = new iam.PolicyStatement({

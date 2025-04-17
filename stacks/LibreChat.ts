@@ -37,6 +37,8 @@ export function LibreChat({ stack }: sst.StackContext) {
 
   instance.connections.allowFromAnyIpv4(ec2.Port.tcp(22), 'Allow SSH access from anywhere');
 
+  instance.addUserData('#!/bin/bash', `echo ${stack.stage} | cat >/etc/env`);
+
   new ec2.CfnEIPAssociation(stack, 'LibreChatEIPAssociation', {
     allocationId: libreChatIpAddress.attrAllocationId,
     instanceId: instance.instanceId,

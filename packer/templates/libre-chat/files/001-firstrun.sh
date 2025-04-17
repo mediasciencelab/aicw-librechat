@@ -4,6 +4,7 @@ echo "***********************************"
 echo "First Run Libre Chat"
 echo "***********************************"
 
+ENV=`cat /etc/env`
 DEV="/dev/nvme1n1"
 MOUNT_PATH="/home/ubuntu/data-node"
 
@@ -44,6 +45,10 @@ fi
 
 # Make sure the mount path is owned by the ubuntu user
 chown -R 1000:1000 $MOUNT_PATH
+
+# Install secrets
+aws ssm get-parameter --name "/mediasci/aicw/librechat/${ENV}/env" --with-decryption --region us-east-1 --query Parameter.Value --output text > /home/ubuntu/.env
+chown 1000:1000 /home/ubuntu/.env
 
 # enable and start service
 echo "Starting libre-chat service..."

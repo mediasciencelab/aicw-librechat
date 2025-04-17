@@ -35,5 +35,7 @@ echo "***********************************"
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y || exit 1
 
 echo "***********************************"
-echo "Set up user"
+echo "Install AWS CLI"
 echo "***********************************"
+
+sudo snap install aws-cli --classic
