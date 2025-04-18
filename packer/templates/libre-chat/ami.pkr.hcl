@@ -87,8 +87,8 @@ build {
   }
 
   provisioner "file" {
-    destination = "/var/tmp/001-firstrun.sh"
-    source      = "${path.root}/files/001-firstrun.sh"
+    destination = "/var/tmp/firstrun.sh"
+    source      = "${path.root}/files/firstrun.sh"
   }
 
   provisioner "file" {
