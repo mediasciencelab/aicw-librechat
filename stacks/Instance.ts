@@ -1,18 +1,18 @@
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
-import { LibreChatStatic } from './LibreChatStatic';
-import { LibreChatStorage } from './LibreChatStorage';
+import { Static } from './Static';
+import { Storage } from './Storage';
 import { Network } from './Network';
 
-export function LibreChat({ stack }: sst.StackContext) {
+export function Instance({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
   const { vpc, certificate } = sst.use(Network);
 
-  const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(LibreChatStatic);
+  const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(Static);
 
-  const { ebsVolume } = sst.use(LibreChatStorage);
+  const { ebsVolume } = sst.use(Storage);
 
   const instance = new ec2.Instance(stack, 'LibreChatInstance', {
     vpc,

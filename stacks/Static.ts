@@ -4,7 +4,7 @@ import * as kms from 'aws-cdk-lib/aws-kms';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
 
-export function LibreChatStatic({ stack }: sst.StackContext) {
+export function Static({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
   const keyPair = new ec2.KeyPair(stack, 'KeyPair', {

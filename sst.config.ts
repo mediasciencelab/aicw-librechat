@@ -1,7 +1,7 @@
 import { SSTConfig } from 'sst';
-import * as librechat from './stacks/LibreChat';
-import * as librechatStatic from './stacks/LibreChatStatic';
-import * as librechatStorage from './stacks/LibreChatStorage';
+import * as librechat from './stacks/Instance';
+import * as librechatStatic from './stacks/Static';
+import * as librechatStorage from './stacks/Storage';
 import * as network from './stacks/Network';
 
 export default {
@@ -13,8 +13,8 @@ export default {
   },
   stacks(app) {
     app.stack(network.Network);
-    app.stack(librechatStatic.LibreChatStatic);
-    app.stack(librechatStorage.LibreChatStorage);
-    app.stack(librechat.LibreChat);
+    app.stack(librechatStatic.Static);
+    app.stack(librechatStorage.Storage);
+    app.stack(librechat.Instance);
   },
 } satisfies SSTConfig;

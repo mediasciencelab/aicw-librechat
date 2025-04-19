@@ -3,7 +3,7 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
 
-export function LibreChatStorage({ stack }: sst.StackContext) {
+export function Storage({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
   const ebsVolume = new ec2.Volume(stack, 'EbsVolume', {
