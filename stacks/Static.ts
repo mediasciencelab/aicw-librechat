@@ -15,6 +15,11 @@ export function Static({ stack }: sst.StackContext) {
 
   const kmsKey = new kms.Key(this, 'KmsKey');
 
+  const kmsKeyAlias = new kms.Alias(this, 'KmsKeyAlias', {
+    aliasName: `alias/aiwc-librechat-${stack.stage}`,
+    targetKey: kmsKey,
+  });
+
   const ssmPolicyStatement = new iam.PolicyStatement({
     effect: iam.Effect.ALLOW,
     actions: [
@@ -35,8 +40,14 @@ export function Static({ stack }: sst.StackContext) {
     resources: [kmsKey.keyArn],
   });
 
+  const kmsKeyAliasPolicyStatement = new iam.PolicyStatement({
+    effect: iam.Effect.ALLOW,
+    actions: ['kms:ListAliases', 'kms:DescribeKey'],
+    resources: ['*'],
+  });
+
   const secretsPolicy = new iam.ManagedPolicy(stack, 'SecretsPolicy', {
-    statements: [ssmPolicyStatement, kmsKeyDecryptionPolicyStatement],
+    statements: [ssmPolicyStatement, kmsKeyDecryptionPolicyStatement, kmsKeyAliasPolicyStatement],
   });
 
   // Export values from cloudformation template.
@@ -44,6 +55,8 @@ export function Static({ stack }: sst.StackContext) {
     keyPairName: keyPair.keyPairName,
     keyPairPrivateKeyParameter: keyPair.privateKey.parameterName,
     kmsKeyId: kmsKey.keyId,
+    kmsKeyArn: kmsKey.keyArn,
+    kmsKeyAlias: kmsKeyAlias.aliasName,
     libreChatIpAddress: libreChatIpAddress.attrPublicIp,
     secretsPolicyArn: secretsPolicy.managedPolicyArn,
   });
