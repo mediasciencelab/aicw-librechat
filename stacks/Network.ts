@@ -32,5 +32,6 @@ export function Network({ stack }: sst.StackContext) {
   return {
     vpc,
     certificate,
+    hostedZone,
   };
 }

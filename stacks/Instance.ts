@@ -1,14 +1,20 @@
+import * as constants from './constants';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as elbv2Targets from 'aws-cdk-lib/aws-elasticloadbalancingv2-targets';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
+import { LoadBalancer } from './LoadBalancer';
+import { Network } from './Network';
 import { Static } from './Static';
 import { Storage } from './Storage';
-import { Network } from './Network';
 
 export function Instance({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, certificate } = sst.use(Network);
+  const { vpc, certificate, hostedZone } = sst.use(Network);
+
+  const { loadBalancer } = sst.use(LoadBalancer);
 
   const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(Static);
 
@@ -53,6 +59,23 @@ export function Instance({ stack }: sst.StackContext) {
     instanceId: instance.instanceId,
     volumeId: ebsVolume.volumeId,
     device: '/dev/xvdbb',
+  });
+
+  const targetGroup = new elbv2.ApplicationTargetGroup(stack, 'TargetGroup', {
+    vpc,
+    port: constants.libreChatPort,
+    protocol: elbv2.ApplicationProtocol.HTTP,
+    targets: [new elbv2Targets.InstanceTarget(instance, constants.libreChatPort)],
+    healthCheck: {
+      path: '/',
+      protocol: elbv2.Protocol.HTTP,
+    },
+  });
+
+  loadBalancer.addListener('Listener', {
+    port: 443,
+    certificates: [certificate],
+    defaultTargetGroups: [targetGroup],
   });
 
   // Export values from cloudformation template.
