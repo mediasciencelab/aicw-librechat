@@ -9,7 +9,7 @@ export function Network({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
   const vpc = new ec2.Vpc(stack, 'Vpc', {
-    maxAzs: 1,
+    maxAzs: 2,
     natGateways: 1,
   });
 
