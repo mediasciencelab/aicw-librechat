@@ -12,13 +12,28 @@ import { Storage } from './Storage';
 export function Instance({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, certificate, hostedZone } = sst.use(Network);
+  const { vpc, certificate } = sst.use(Network);
 
-  const { loadBalancer } = sst.use(LoadBalancer);
+  const { loadBalancerArn, loadBalancerSecurityGroupId } = sst.use(LoadBalancer);
 
   const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(Static);
 
   const { ebsVolume } = sst.use(Storage);
+
+  const loadBalancer = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(
+    stack,
+    'LoadBalancer',
+    {
+      loadBalancerArn: loadBalancerArn,
+      securityGroupId: loadBalancerSecurityGroupId,
+    },
+  );
+
+  const lbSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+    stack,
+    'LoadBalancerSecurityGroup',
+    loadBalancerSecurityGroupId,
+  );
 
   const instance = new ec2.Instance(stack, 'LibreChatInstance', {
     vpc,
@@ -72,6 +87,12 @@ export function Instance({ stack }: sst.StackContext) {
     },
   });
 
+  instance.connections.allowFrom(
+    lbSecurityGroup,
+    ec2.Port.tcp(constants.libreChatPort),
+    'Allow traffic from ALB',
+  );
+
   loadBalancer.addListener('Listener', {
     port: 443,
     certificates: [certificate],
@@ -84,5 +105,8 @@ export function Instance({ stack }: sst.StackContext) {
     instanceId: instance.instanceId,
     certificateArn: certificate.certificateArn,
     keyPairPrivateKeyParameter: keyPair.privateKey.parameterName,
+    url: `https://${stack.stage}.${constants.hostedDomainName}`,
   });
+
+  return { instance, targetGroup };
 }

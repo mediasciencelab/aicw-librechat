@@ -1,9 +1,11 @@
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
-import * as sst from 'sst/constructs';
-import { setStandardTags } from './tags';
-import { Network } from './Network';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as sst from 'sst/constructs';
+import { Network } from './Network';
+import { setStandardTags } from './tags';
 
 export function LoadBalancer({ stack }: sst.StackContext) {
   setStandardTags(stack);
@@ -21,10 +23,23 @@ export function LoadBalancer({ stack }: sst.StackContext) {
     target: route53.RecordTarget.fromAlias(new route53Targets.LoadBalancerTarget(loadBalancer)),
   });
 
+  const lbSecurityGroup = new ec2.SecurityGroup(stack, 'lbSecurityGroup', {
+    vpc,
+    description: 'Security group for ALB',
+    allowAllOutbound: true,
+  });
+
+  loadBalancer.connections.addSecurityGroup(lbSecurityGroup);
+
   stack.addOutputs({
     loadBalancerDNS: loadBalancer.loadBalancerDnsName,
     loadBalancerArn: loadBalancer.loadBalancerArn,
   });
 
-  return { loadBalancer };
+  return {
+    loadBalancer,
+    lbSecurityGroup,
+    loadBalancerArn: loadBalancer.loadBalancerArn,
+    loadBalancerSecurityGroupId: lbSecurityGroup.securityGroupId,
+  };
 }
