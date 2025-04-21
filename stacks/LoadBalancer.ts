@@ -2,7 +2,6 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as sst from 'sst/constructs';
 import { Network } from './Network';
 import { setStandardTags } from './tags';
