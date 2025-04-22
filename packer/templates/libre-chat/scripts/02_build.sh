@@ -17,8 +17,10 @@ sudo chmod +x /home/ubuntu/firstrun.sh
 sudo cp /var/tmp/libre-chat.service /etc/systemd/system/libre-chat.service
 cp /var/tmp/librechat.mediasci.yaml /home/ubuntu/librechat.yaml
 
+mkdir -p /home/ubuntu/data
 mkdir -p /home/ubuntu/data-node
 mkdir -p /home/ubuntu/images
 mkdir -p /home/ubuntu/meili_data_v1.12
 mkdir -p /home/ubuntu/logs
 mkdir -p /home/ubuntu/uploads
+
