@@ -47,4 +47,4 @@ instance_ip=$(
 
 # SSH to instance
 
-ssh ubuntu@$instance_ip "${cmd}"
+ssh -tt ubuntu@$instance_ip "${cmd}"
