@@ -79,5 +79,5 @@ to use the stage in the `.sst/stage` file.
 **Example:**
 
 ```shell
-./scripts/create-user.sh -s trajector -u
+./scripts/create-user.sh -s trajector
 ```
