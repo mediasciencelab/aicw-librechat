@@ -45,5 +45,6 @@ export function Network({ stack }: sst.StackContext) {
     certificate,
     chatCertificate,
     hostedZone,
+    chatHostedZone,
   };
 }
