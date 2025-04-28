@@ -12,9 +12,14 @@ import { Storage } from './Storage';
 export function Instance({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, certificate } = sst.use(Network);
+  const { vpc, certificate, chatCertificate } = sst.use(Network);
 
-  const { loadBalancerArn, loadBalancerSecurityGroupId } = sst.use(LoadBalancer);
+  const {
+    loadBalancerArn,
+    loadBalancerSecurityGroupId,
+    chatLoadBalancerArn,
+    chatLoadBalancerSecurityGroupId,
+  } = sst.use(LoadBalancer);
 
   const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(Static);
 
@@ -26,6 +31,15 @@ export function Instance({ stack }: sst.StackContext) {
     {
       loadBalancerArn: loadBalancerArn,
       securityGroupId: loadBalancerSecurityGroupId,
+    },
+  );
+
+  const chatLoadBalancer = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(
+    stack,
+    'ChatLoadBalancer',
+    {
+      loadBalancerArn: chatLoadBalancerArn,
+      securityGroupId: chatLoadBalancerSecurityGroupId,
     },
   );
 
@@ -87,6 +101,17 @@ export function Instance({ stack }: sst.StackContext) {
     },
   });
 
+  const chatTargetGroup = new elbv2.ApplicationTargetGroup(stack, 'ChatTargetGroup', {
+    vpc,
+    port: constants.libreChatPort,
+    protocol: elbv2.ApplicationProtocol.HTTP,
+    targets: [new elbv2Targets.InstanceTarget(instance, constants.libreChatPort)],
+    healthCheck: {
+      path: '/',
+      protocol: elbv2.Protocol.HTTP,
+    },
+  });
+
   instance.connections.allowFrom(
     lbSecurityGroup,
     ec2.Port.tcp(constants.libreChatPort),
@@ -97,6 +122,12 @@ export function Instance({ stack }: sst.StackContext) {
     port: 443,
     certificates: [certificate],
     defaultTargetGroups: [targetGroup],
+  });
+
+  chatLoadBalancer.addListener('ChatListener', {
+    port: 443,
+    certificates: [chatCertificate],
+    defaultTargetGroups: [chatTargetGroup],
   });
 
   // Export values from cloudformation template.
