@@ -18,9 +18,9 @@ See [Docker website](https://www.docker.com/)
 
 ### Docker image
 
-The docker image is built locally and uploaded to the EC2 instance used for building the AMI.
-This is done because it takes a very long time to buuild the container images remotely.
-Once built it is not necessary to rebuild the image unless the code changes.
+The docker image is built as part of the AMI build process. However, if you want to
+build the docker image separately, you can do so using the `docker compose` command.
+This will build the image to your locally running docker daemon.
 
 ```shell
 docker compose -f docker-compose.mediasci.yml build
@@ -33,6 +33,17 @@ Once the docker image is built, the AMI can be built using the `packer` command.
 ```shell
 packer build -var env=<environment>  packer/templates/libre-chat
 ```
+
+### Deploying EC2 AMI to environment
+
+And AMI is used by an environment if it is tagged for that environment. For a given environment
+"my-env", the AMI must be tagged with `mediasci:env:my-env` == `true`. The latest AMI image which
+name starts with `aiwc-librechat-` and is tagged with `mediasci:env:my-env` will be used by that
+environment.
+
+**WARNING:** In order to deploy a new AMI to an existing environment, it is necessary to *manually*
+delete the reference to the old AMI from your local `cdk.context.json` file. This is because the
+CDK will not update the AMI reference if it is already set. 
 
 # User management
 
