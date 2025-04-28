@@ -9,9 +9,14 @@ import { setStandardTags } from './tags';
 export function LoadBalancer({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, hostedZone } = sst.use(Network);
+  const { vpc, hostedZone, chatHostedZone } = sst.use(Network);
 
   const loadBalancer = new elbv2.ApplicationLoadBalancer(stack, 'LoadBalancer', {
+    vpc,
+    internetFacing: true,
+  });
+
+  const chatLoadBalancer = new elbv2.ApplicationLoadBalancer(stack, 'ChatLoadBalancer', {
     vpc,
     internetFacing: true,
   });
@@ -22,6 +27,12 @@ export function LoadBalancer({ stack }: sst.StackContext) {
     target: route53.RecordTarget.fromAlias(new route53Targets.LoadBalancerTarget(loadBalancer)),
   });
 
+  new route53.ARecord(stack, 'ChatDnsAlias', {
+    zone: chatHostedZone,
+    recordName: stack.stage,
+    target: route53.RecordTarget.fromAlias(new route53Targets.LoadBalancerTarget(chatLoadBalancer)),
+  });
+
   const lbSecurityGroup = new ec2.SecurityGroup(stack, 'lbSecurityGroup', {
     vpc,
     description: 'Security group for ALB',
@@ -29,16 +40,22 @@ export function LoadBalancer({ stack }: sst.StackContext) {
   });
 
   loadBalancer.connections.addSecurityGroup(lbSecurityGroup);
+  chatLoadBalancer.connections.addSecurityGroup(lbSecurityGroup);
 
   stack.addOutputs({
     loadBalancerDNS: loadBalancer.loadBalancerDnsName,
     loadBalancerArn: loadBalancer.loadBalancerArn,
+    chatLoadBalancerDNS: chatLoadBalancer.loadBalancerDnsName,
+    chatLoadBalancerArn: chatLoadBalancer.loadBalancerArn,
   });
 
   return {
     loadBalancer,
+    chatLoadBalancer,
     lbSecurityGroup,
     loadBalancerArn: loadBalancer.loadBalancerArn,
     loadBalancerSecurityGroupId: lbSecurityGroup.securityGroupId,
+    chatLoadBalancerArn: chatLoadBalancer.loadBalancerArn,
+    chatLoadBalancerSecurityGroupId: lbSecurityGroup.securityGroupId,
   };
 }
