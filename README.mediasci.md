@@ -41,6 +41,13 @@ And AMI is used by an environment if it is tagged for that environment. For a gi
 name starts with `aiwc-librechat-` and is tagged with `mediasci:env:my-env` will be used by that
 environment.
 
+You can promote an AMI from an existing environment to another environment by using the
+`promote-ami.sh` script:
+
+```shell
+./script/promote-ami.sh <source-env> <destination-env>
+```
+
 **WARNING:** In order to deploy a new AMI to an existing environment, it is necessary to *manually*
 delete the reference to the old AMI from your local `cdk.context.json` file. This is because the
 CDK will not update the AMI reference if it is already set. 
