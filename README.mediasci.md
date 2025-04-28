@@ -52,6 +52,34 @@ You can promote an AMI from an existing environment to another environment by us
 delete the reference to the old AMI from your local `cdk.context.json` file. This is because the
 CDK will not update the AMI reference if it is already set. 
 
+### Setting environment secrets
+
+There are a number of secrets that an environement needs in order to run. These are set manually.
+These secrets must be encrypted using the environments KMS key. To create the KMS key, deploy the
+`Static` stack:
+
+```shell
+pnpm ssh deploy --stage <env> Static
+```
+
+The secrets for an environment must have the format:
+
+```shell
+CREDS_KEY=<credential key>
+CREDS_IV=<credential IV>
+JWT_SECRET=<JWT secret>
+JWT_REFRESH_SECRET=<JWT refresh secret>
+MEILI_MASTER_KEY=<MeiliSearch master key>
+OPENAI_API_KEY=<OpenAI API key>
+ANTHROPIC_API_KEY=<Anthropic API key>
+```
+
+A file containing these secret can be uploaded using the `upload-secrets.sh` script:
+
+```shell
+./scripts/upload-secrets.sh -s <env> <path-to-secrets-file>
+```
+
 # User management
 
 If you have sufficient access to the main AWS account, you can use scripts in the `scripts`
