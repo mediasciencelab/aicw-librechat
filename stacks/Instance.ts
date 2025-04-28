@@ -106,6 +106,7 @@ export function Instance({ stack }: sst.StackContext) {
     certificateArn: certificate.certificateArn,
     keyPairPrivateKeyParameter: keyPair.privateKey.parameterName,
     url: `https://${stack.stage}.${constants.hostedDomainName}`,
+    chatUrl: `https://${stack.stage}.${constants.chatHostedDomainName}`,
   });
 
   return { instance, targetGroup };
