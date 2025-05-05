@@ -12,27 +12,14 @@ import { Storage } from './Storage';
 export function Instance({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, certificate, chatCertificate } = sst.use(Network);
+  const { vpc, chatCertificate } = sst.use(Network);
 
-  const {
-    loadBalancerArn,
-    loadBalancerSecurityGroupId,
-    chatLoadBalancerArn,
-    chatLoadBalancerSecurityGroupId,
-  } = sst.use(LoadBalancer);
+  const { loadBalancerSecurityGroupId, chatLoadBalancerArn, chatLoadBalancerSecurityGroupId } =
+    sst.use(LoadBalancer);
 
   const { keyPair, libreChatIpAddress, secretsPolicy } = sst.use(Static);
 
   const { ebsVolume } = sst.use(Storage);
-
-  const loadBalancer = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(
-    stack,
-    'LoadBalancer',
-    {
-      loadBalancerArn: loadBalancerArn,
-      securityGroupId: loadBalancerSecurityGroupId,
-    },
-  );
 
   const chatLoadBalancer = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(
     stack,
@@ -118,12 +105,6 @@ export function Instance({ stack }: sst.StackContext) {
     'Allow traffic from ALB',
   );
 
-  loadBalancer.addListener('Listener', {
-    port: 443,
-    certificates: [certificate],
-    defaultTargetGroups: [targetGroup],
-  });
-
   chatLoadBalancer.addListener('ChatListener', {
     port: 443,
     certificates: [chatCertificate],
@@ -134,9 +115,7 @@ export function Instance({ stack }: sst.StackContext) {
   stack.addOutputs({
     vpcId: vpc.vpcId,
     instanceId: instance.instanceId,
-    certificateArn: certificate.certificateArn,
     keyPairPrivateKeyParameter: keyPair.privateKey.parameterName,
-    url: `https://${stack.stage}.${constants.hostedDomainName}`,
     chatUrl: `https://${stack.stage}.${constants.chatHostedDomainName}`,
   });
 

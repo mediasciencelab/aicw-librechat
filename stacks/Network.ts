@@ -13,20 +13,10 @@ export function Network({ stack }: sst.StackContext) {
     natGateways: 1,
   });
 
-  const hostedZone = route53.HostedZone.fromLookup(stack, 'HostedZone', {
-    domainName: constants.hostedDomainName,
-  });
-  const domainName = `${stack.stage}.${constants.hostedDomainName}`;
-
   const chatHostedZone = route53.HostedZone.fromLookup(stack, 'ChatHostedZone', {
     domainName: constants.chatHostedDomainName,
   });
   const chatDomainName = `${stack.stage}.${constants.chatHostedDomainName}`;
-
-  const certificate = new certificatemanager.Certificate(stack, 'Certificate', {
-    domainName: domainName,
-    validation: certificatemanager.CertificateValidation.fromDns(hostedZone),
-  });
 
   const chatCertificate = new certificatemanager.Certificate(stack, 'ChatCertificate', {
     domainName: chatDomainName,
@@ -36,15 +26,12 @@ export function Network({ stack }: sst.StackContext) {
   // Export values from cloudformation template.
   stack.addOutputs({
     vpcId: vpc.vpcId,
-    certificateArn: certificate.certificateArn,
     chatCertificateArn: chatCertificate.certificateArn,
   });
 
   return {
     vpc,
-    certificate,
     chatCertificate,
-    hostedZone,
     chatHostedZone,
   };
 }
