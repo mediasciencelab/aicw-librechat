@@ -1,5 +1,10 @@
 # Libre-Chat deployment
 
+## Prerequisites
+
+- AWS CLI configured with appropriate permissions
+- Domain hosted zone already configured in Route 53
+
 ## Requirements
 
 ### packer
@@ -28,24 +33,37 @@ docker compose -f docker-compose.mediasci.yml build
 
 ### EC2 AMI
 
-Once the docker image is built, the AMI can be built using the `packer` command.
+Once the docker image is built, the AMI can be built using the `packer` command. The `<environment>` parameter should match the stage name you plan to deploy to (e.g., "dev", "staging", "prod"):
 
 ```shell
 packer build -var env=<environment>  packer/templates/libre-chat
 ```
 
+**Example:**
+```shell
+packer build -var env=staging packer/templates/libre-chat
+```
+
 ### Deploying EC2 AMI to environment
 
-And AMI is used by an environment if it is tagged for that environment. For a given environment
-"my-env", the AMI must be tagged with `mediasci:env:my-env` == `true`. The latest AMI image which
-name starts with `aiwc-librechat-` and is tagged with `mediasci:env:my-env` will be used by that
-environment.
+AMIs are automatically selected by the deployment based on tags. For a given stage "my-env", the deployment will use the latest AMI that:
+- Has a name starting with `aiwc-librechat-`
+- Is tagged with `mediasci:env:my-env` = `true`
+- Is tagged with `mediasci:project` = `aicw`
 
-You can promote an AMI from an existing environment to another environment by using the
-`promote-ami.sh` script:
+**AMI Tagging:** When you build an AMI with `packer build -var env=my-env`, it automatically gets tagged for that environment.
+
+**Promoting AMIs between environments:**
+
+You can promote an existing AMI from one environment to another without rebuilding:
 
 ```shell
-./script/promote-ami.sh <source-env> <destination-env>
+./scripts/promote-ami.sh <source-env> <destination-env>
+```
+
+**Example:**
+```shell
+./scripts/promote-ami.sh dev prod
 ```
 
 **WARNING:** In order to deploy a new AMI to an existing environment, it is necessary to *manually*
@@ -55,6 +73,9 @@ CDK will not update the AMI reference if it is already set.
 ## Infrastructure Architecture
 
 The infrastructure uses a shared VPC model with separate stacks for different concerns:
+
+**Note:** Throughout this documentation, "stage" and "environment" are used interchangeably.
+Both refer to deployment targets like "dev", "staging", or "trajector".
 
 ### Stack Overview
 
@@ -109,15 +130,17 @@ pnpm sst deploy --stage <env> Instance
 
 ### Setting environment secrets
 
-There are a number of secrets that an environement needs in order to run. These are set manually.
-These secrets must be encrypted using the environments KMS key. To create the KMS key, deploy the
-`Static` stack:
+Each environment requires several secrets to function properly. These secrets are encrypted using the environment's KMS key and stored in AWS Systems Manager Parameter Store.
+
+**Step 1: Deploy `Static` stack to create KMS key**
 
 ```shell
 pnpm sst deploy --stage <env> Static
 ```
 
-The secrets for an environment must have the format:
+**Step 2: Create secrets file**
+
+Create a file containing the required secrets in this format:
 
 ```shell
 CREDS_KEY=<credential key>
@@ -129,19 +152,31 @@ OPENAI_API_KEY=<OpenAI API key>
 ANTHROPIC_API_KEY=<Anthropic API key>
 ```
 
-A file containing these secret can be uploaded using the `upload-secrets.sh` script:
+**Step 3: Upload secrets**
 
 ```shell
 ./scripts/upload-secrets.sh -s <env> <path-to-secrets-file>
 ```
 
+**Example:**
+```shell
+./scripts/upload-secrets.sh -s staging ./secrets/trajector.env
+```
+
+**How secrets are used:** The LibreChat application automatically retrieves these encrypted secrets
+from Parameter Store at startup using the KMS key to decrypt them.
+
 # User management
 
-If you have sufficient access to the main AWS account, you can use scripts in the `scripts`
-directory to remotely manage users on the EC2 instance.
+You can use scripts in the `scripts` directory to remotely manage users on the EC2 instance.
 
-All scripts will by default use the stage set in the `.sst/stage` file. To explicitly use
-a specific stage, use the `-s` flag on each command.
+**Prerequisites for user management scripts:**
+- AWS CLI configured with permissions for EC2, Systems Manager Parameter Store, and KMS
+- SSH access to the target environment's EC2 instance
+
+**Stage selection:** All scripts will by default use the stage set in the `.sst/stage` file.
+To explicitly use a specific stage, use the `-s` flag on each command. If the `.sst/stage` file
+doesn't exist, you must use the `-s` flag.
 
 ## Adding SSH key to agent
 
