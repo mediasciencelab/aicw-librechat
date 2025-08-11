@@ -1,5 +1,6 @@
 import { SSTConfig } from 'sst';
 import * as lcInstance from './stacks/Instance';
+import * as lcGlobal from './stacks/Global';
 import * as lcLoadBalancer from './stacks/LoadBalancer';
 import * as lcStatic from './stacks/Static';
 import * as lcStorage from './stacks/Storage';
@@ -13,10 +14,13 @@ export default {
     };
   },
   stacks(app) {
-    app.stack(lcNetwork.Network);
-    app.stack(lcStatic.Static);
-    app.stack(lcStorage.Storage);
-    app.stack(lcLoadBalancer.LoadBalancer);
-    app.stack(lcInstance.Instance);
+    app.stack(lcGlobal.Global);
+    if (app.stage !== 'global') {
+      app.stack(lcNetwork.Network);
+      app.stack(lcStatic.Static);
+      app.stack(lcStorage.Storage);
+      app.stack(lcLoadBalancer.LoadBalancer);
+      app.stack(lcInstance.Instance);
+    }
   },
 } satisfies SSTConfig;
