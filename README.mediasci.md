@@ -23,9 +23,9 @@ See [Docker website](https://www.docker.com/)
 
 ### Docker image
 
-The docker image is built as part of the AMI build process. However, if you want to
-build the docker image separately, you can do so using the `docker compose` command.
-This will build the image to your locally running docker daemon.
+The docker image is built as part of the AMI build process. However, if you want to build the
+docker image separately, you can do so using the `docker compose` command. This will build the
+image to your locally running docker daemon.
 
 ```shell
 docker compose -f docker-compose.mediasci.yml build
@@ -33,7 +33,9 @@ docker compose -f docker-compose.mediasci.yml build
 
 ### EC2 AMI
 
-Once the docker image is built, the AMI can be built using the `packer` command. The `<environment>` parameter should match the stage name you plan to deploy to (e.g., "dev", "staging", "prod"):
+Once the docker image is built, the AMI can be built using the `packer` command. The
+`<environment>` parameter should match the stage name you plan to deploy to (e.g., "dev",
+"staging", "prod"):
 
 ```shell
 packer build -var env=<environment>  packer/templates/libre-chat
@@ -46,12 +48,14 @@ packer build -var env=staging packer/templates/libre-chat
 
 ### Deploying EC2 AMI to environment
 
-AMIs are automatically selected by the deployment based on tags. For a given stage "my-env", the deployment will use the latest AMI that:
+AMIs are automatically selected by the deployment based on tags. For a given stage "my-env", the
+deployment will use the latest AMI that:
 - Has a name starting with `aiwc-librechat-`
 - Is tagged with `mediasci:env:my-env` = `true`
 - Is tagged with `mediasci:project` = `aicw`
 
-**AMI Tagging:** When you build an AMI with `packer build -var env=my-env`, it automatically gets tagged for that environment.
+**AMI Tagging:** When you build an AMI with `packer build -var env=my-env`, it automatically gets
+tagged for that environment.
 
 **Promoting AMIs between environments:**
 
@@ -66,21 +70,22 @@ You can promote an existing AMI from one environment to another without rebuildi
 ./scripts/promote-ami.sh dev prod
 ```
 
-**WARNING:** In order to deploy a new AMI to an existing environment, it is necessary to *manually*
-delete the reference to the old AMI from your local `cdk.context.json` file. This is because the
-CDK will not update the AMI reference if it is already set. 
+**WARNING:** In order to deploy a new AMI to an existing environment, it is necessary to
+*manually* delete the reference to the old AMI from your local `cdk.context.json` file. This is
+because the CDK will not update the AMI reference if it is already set.
 
 ## Infrastructure Architecture
 
 The infrastructure uses a shared VPC model with separate stacks for different concerns:
 
-**Note:** Throughout this documentation, "stage" and "environment" are used interchangeably.
-Both refer to deployment targets like "dev", "staging", or "trajector".
+**Note:** Throughout this documentation, "stage" and "environment" are used interchangeably. Both
+refer to deployment targets like "dev", "staging", or "trajector".
 
 ### Stack Overview
 
-1. **Global Stack** (`--stage global`): Creates shared VPC infrastructure used by all environments
-2. **Domain Stack**: Manages SSL certificates and DNS configuration  
+1. **Global Stack** (`--stage global`): Creates shared VPC infrastructure used by all
+   environments
+2. **Domain Stack**: Manages SSL certificates and DNS configuration
 3. **Static Stack**: Creates environment-specific resources (KMS keys, EIP, etc.)
 4. **Storage Stack**: Manages EBS volumes
 5. **LoadBalancer Stack**: Application load balancer configuration
@@ -104,9 +109,9 @@ Both refer to deployment targets like "dev", "staging", or "trajector".
 
 **Temporarily disabling an environment:**
 
-To reduce costs or temporarily disable an environment while preserving storage and secrets, you can
-remove stacks in reverse dependency order. This preserves EBS volumes, KMS keys, secrets, and
-Elastic IP addresses:
+To reduce costs or temporarily disable an environment while preserving storage and secrets, you
+can remove stacks in reverse dependency order. This preserves EBS volumes, KMS keys, secrets,
+and Elastic IP addresses:
 
 ```shell
 # Remove stacks in reverse dependency order
@@ -115,7 +120,8 @@ pnpm sst remove --stage <env> LoadBalancer
 pnpm sst remove --stage <env> Domain
 ```
 
-**Important:** Always remove in this order to avoid dependency conflicts. The Static and Storage stacks are preserved to maintain persistent resources.
+**Important:** Always remove in this order to avoid dependency conflicts. The Static and Storage
+stacks are preserved to maintain persistent resources.
 
 **Re-enabling a disabled environment:**
 
@@ -130,7 +136,8 @@ pnpm sst deploy --stage <env> Instance
 
 ### Setting environment secrets
 
-Each environment requires several secrets to function properly. These secrets are encrypted using the environment's KMS key and stored in AWS Systems Manager Parameter Store.
+Each environment requires several secrets to function properly. These secrets are encrypted using
+the environment's KMS key and stored in AWS Systems Manager Parameter Store.
 
 **Step 1: Deploy `Static` stack to create KMS key**
 
@@ -163,8 +170,8 @@ ANTHROPIC_API_KEY=<Anthropic API key>
 ./scripts/upload-secrets.sh -s staging ./secrets/trajector.env
 ```
 
-**How secrets are used:** The LibreChat application automatically retrieves these encrypted secrets
-from Parameter Store at startup using the KMS key to decrypt them.
+**How secrets are used:** The LibreChat application automatically retrieves these encrypted
+secrets from Parameter Store at startup using the KMS key to decrypt them.
 
 # User management
 
@@ -174,16 +181,16 @@ You can use scripts in the `scripts` directory to remotely manage users on the E
 - AWS CLI configured with permissions for EC2, Systems Manager Parameter Store, and KMS
 - SSH access to the target environment's EC2 instance
 
-**Stage selection:** All scripts will by default use the stage set in the `.sst/stage` file.
-To explicitly use a specific stage, use the `-s` flag on each command. If the `.sst/stage` file
+**Stage selection:** All scripts will by default use the stage set in the `.sst/stage` file. To
+explicitly use a specific stage, use the `-s` flag on each command. If the `.sst/stage` file
 doesn't exist, you must use the `-s` flag.
 
 ## Adding SSH key to agent
 
-Before running any of the scripts, you need to add the SSH key to the agent. This is done
-using the `scripts/ssh-add-instance.sh`. The SSH key is specific to each environment.
-Like all commands, you can use the `-s` flag to specify the environment or it will attempt
-to use the stage in the `.sst/stage` file.
+Before running any of the scripts, you need to add the SSH key to the agent. This is done using
+the `scripts/ssh-add-instance.sh`. The SSH key is specific to each environment. Like all
+commands, you can use the `-s` flag to specify the environment or it will attempt to use the
+stage in the `.sst/stage` file.
 
 **Example:**
 
@@ -193,10 +200,10 @@ to use the stage in the `.sst/stage` file.
 
 ## SSH to instance
 
-One can simply SSH to the instance using the `scripts/ssh-instance.sh` script. This assumes
-you have already added the SSH key to the agent using the `ssh-add-instance.sh` script.
-Like all commands, you can use the `-s` flag to specify the environment or it will attempt
-to use the stage in the `.sst/stage` file.
+One can simply SSH to the instance using the `scripts/ssh-instance.sh` script. This assumes you
+have already added the SSH key to the agent using the `ssh-add-instance.sh` script. Like all
+commands, you can use the `-s` flag to specify the environment or it will attempt to use the
+stage in the `.sst/stage` file.
 
 **Example:**
 
