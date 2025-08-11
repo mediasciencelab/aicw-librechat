@@ -3,13 +3,15 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as sst from 'sst/constructs';
-import { Network } from './Network';
+import { Domain } from './Domain';
+import { Global } from './Global';
 import { setStandardTags } from './tags';
 
 export function LoadBalancer({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, chatHostedZone } = sst.use(Network);
+  const { vpc } = sst.use(Global);
+  const { chatHostedZone } = sst.use(Domain);
 
   const chatLoadBalancer = new elbv2.ApplicationLoadBalancer(stack, 'ChatLoadBalancer', {
     vpc,

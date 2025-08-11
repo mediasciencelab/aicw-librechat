@@ -5,14 +5,16 @@ import * as elbv2Targets from 'aws-cdk-lib/aws-elasticloadbalancingv2-targets';
 import * as sst from 'sst/constructs';
 import { setStandardTags } from './tags';
 import { LoadBalancer } from './LoadBalancer';
-import { Network } from './Network';
+import { Domain } from './Domain';
+import { Global } from './Global';
 import { Static } from './Static';
 import { Storage } from './Storage';
 
 export function Instance({ stack }: sst.StackContext) {
   setStandardTags(stack);
 
-  const { vpc, chatCertificate } = sst.use(Network);
+  const { vpc } = sst.use(Global);
+  const { chatCertificate } = sst.use(Domain);
 
   const { loadBalancerSecurityGroupId, chatLoadBalancerArn, chatLoadBalancerSecurityGroupId } =
     sst.use(LoadBalancer);
