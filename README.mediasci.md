@@ -52,6 +52,61 @@ You can promote an AMI from an existing environment to another environment by us
 delete the reference to the old AMI from your local `cdk.context.json` file. This is because the
 CDK will not update the AMI reference if it is already set. 
 
+## Infrastructure Architecture
+
+The infrastructure uses a shared VPC model with separate stacks for different concerns:
+
+### Stack Overview
+
+1. **Global Stack** (`--stage global`): Creates shared VPC infrastructure used by all environments
+2. **Domain Stack**: Manages SSL certificates and DNS configuration  
+3. **Static Stack**: Creates environment-specific resources (KMS keys, EIP, etc.)
+4. **Storage Stack**: Manages EBS volumes
+5. **LoadBalancer Stack**: Application load balancer configuration
+6. **Instance Stack**: EC2 instance and target group configuration
+
+### Deployment Order
+
+**First-time setup:**
+
+1. Deploy the Global stack to create shared VPC:
+   ```shell
+   pnpm sst deploy --stage global
+   ```
+
+2. Deploy environment-specific stacks:
+   ```shell
+   pnpm sst deploy --stage <env>
+   ```
+
+### Environment Management
+
+**Temporarily disabling an environment:**
+
+To reduce costs or temporarily disable an environment while preserving storage and secrets, you can
+remove stacks in reverse dependency order. This preserves EBS volumes, KMS keys, secrets, and
+Elastic IP addresses:
+
+```shell
+# Remove stacks in reverse dependency order
+pnpm sst remove --stage <env> Instance
+pnpm sst remove --stage <env> LoadBalancer
+pnpm sst remove --stage <env> Domain
+```
+
+**Important:** Always remove in this order to avoid dependency conflicts. The Static and Storage stacks are preserved to maintain persistent resources.
+
+**Re-enabling a disabled environment:**
+
+To restore a temporarily disabled environment, redeploy stacks in dependency order:
+
+```shell
+# Deploy stacks in dependency order
+pnpm sst deploy --stage <env> Domain
+pnpm sst deploy --stage <env> LoadBalancer
+pnpm sst deploy --stage <env> Instance
+```
+
 ### Setting environment secrets
 
 There are a number of secrets that an environement needs in order to run. These are set manually.
@@ -59,7 +114,7 @@ These secrets must be encrypted using the environments KMS key. To create the KM
 `Static` stack:
 
 ```shell
-pnpm ssh deploy --stage <env> Static
+pnpm sst deploy --stage <env> Static
 ```
 
 The secrets for an environment must have the format:
