@@ -1,10 +1,10 @@
 const path = require('path');
+const mongoose = require(path.resolve(__dirname, '..', 'api', 'node_modules', 'mongoose'));
+const { User, Balance } = require('@librechat/data-schemas').createModels(mongoose);
 require('module-alias')({ base: path.resolve(__dirname, '..', 'api') });
 const { askQuestion, silentExit } = require('./helpers');
 const { isEnabled } = require('~/server/utils/handleText');
-const User = require('~/models/User');
 const connect = require('./connect');
-const Balance = require('~/models/Balance');
 
 (async () => {
   await connect();
@@ -98,7 +98,7 @@ const Balance = require('~/models/Balance');
   }
 
   // Check the result
-  if (!result?.tokenCredits) {
+  if (result?.tokenCredits == null) {
     console.red('Error: Something went wrong while updating the balance!');
     console.error(result);
     silentExit(1);

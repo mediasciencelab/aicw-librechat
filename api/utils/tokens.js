@@ -2,7 +2,9 @@ const z = require('zod');
 const { EModelEndpoint } = require('librechat-data-provider');
 
 const openAIModels = {
+  'o4-mini': 200000,
   'o3-mini': 195000, // -5000 from max
+  o3: 200000,
   o1: 195000, // -5000 from max
   'o1-mini': 127500, // -500 from max
   'o1-preview': 127500, // -500 from max
@@ -14,6 +16,12 @@ const openAIModels = {
   'gpt-4-1106': 127500, // -500 from max
   'gpt-4-0125': 127500, // -500 from max
   'gpt-4.5': 127500, // -500 from max
+  'gpt-4.1': 1047576,
+  'gpt-4.1-mini': 1047576,
+  'gpt-4.1-nano': 1047576,
+  'gpt-5': 400000,
+  'gpt-5-mini': 400000,
+  'gpt-5-nano': 400000,
   'gpt-4o': 127500, // -500 from max
   'gpt-4o-mini': 127500, // -500 from max
   'gpt-4o-2024-05-13': 127500, // -500 from max
@@ -55,10 +63,16 @@ const cohereModels = {
 
 const googleModels = {
   /* Max I/O is combined so we subtract the amount from max response tokens for actual total */
+  gemma: 8196,
+  'gemma-2': 32768,
+  'gemma-3': 32768,
+  'gemma-3-27b': 131072,
   gemini: 30720, // -2048 from max
   'gemini-pro-vision': 12288,
   'gemini-exp': 2000000,
   'gemini-2.5': 1000000, // 1M input tokens, 64k output tokens
+  'gemini-2.5-pro': 1000000,
+  'gemini-2.5-flash': 1000000,
   'gemini-2.0': 2000000,
   'gemini-2.0-flash': 1000000,
   'gemini-2.0-flash-lite': 1000000,
@@ -94,6 +108,9 @@ const anthropicModels = {
   'claude-3.7-sonnet': 200000,
   'claude-3-5-sonnet-latest': 200000,
   'claude-3.5-sonnet-latest': 200000,
+  'claude-sonnet-4': 200000,
+  'claude-opus-4': 200000,
+  'claude-4': 200000,
 };
 
 const deepseekModels = {
@@ -182,6 +199,7 @@ const amazonModels = {
   'amazon.nova-micro-v1:0': 127000, // -1000 from max,
   'amazon.nova-lite-v1:0': 295000, // -5000 from max,
   'amazon.nova-pro-v1:0': 295000, // -5000 from max,
+  'amazon.nova-premier-v1:0': 995000, // -5000 from max,
 };
 
 const bedrockModels = {
@@ -196,6 +214,7 @@ const bedrockModels = {
 };
 
 const xAIModels = {
+  grok: 131072,
   'grok-beta': 131072,
   'grok-vision-beta': 8192,
   'grok-2': 131072,
@@ -204,9 +223,24 @@ const xAIModels = {
   'grok-2-vision': 32768,
   'grok-2-vision-latest': 32768,
   'grok-2-vision-1212': 32768,
+  'grok-3': 131072,
+  'grok-3-fast': 131072,
+  'grok-3-mini': 131072,
+  'grok-3-mini-fast': 131072,
+  'grok-4': 256000, // 256K context
 };
 
-const aggregateModels = { ...openAIModels, ...googleModels, ...bedrockModels, ...xAIModels };
+const aggregateModels = {
+  ...openAIModels,
+  ...googleModels,
+  ...bedrockModels,
+  ...xAIModels,
+  // misc.
+  kimi: 131000,
+  // GPT-OSS
+  'gpt-oss-20b': 131000,
+  'gpt-oss-120b': 131000,
+};
 
 const maxTokensMap = {
   [EModelEndpoint.azureOpenAI]: openAIModels,
@@ -222,15 +256,25 @@ const modelMaxOutputs = {
   o1: 32268, // -500 from max: 32,768
   'o1-mini': 65136, // -500 from max: 65,536
   'o1-preview': 32268, // -500 from max: 32,768
+  'gpt-5': 128000,
+  'gpt-5-mini': 128000,
+  'gpt-5-nano': 128000,
+  'gpt-oss-20b': 131000,
+  'gpt-oss-120b': 131000,
   system_default: 1024,
 };
 
+/** Outputs from https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-names */
 const anthropicMaxOutputs = {
   'claude-3-haiku': 4096,
   'claude-3-sonnet': 4096,
   'claude-3-opus': 4096,
+  'claude-opus-4': 32000,
+  'claude-sonnet-4': 64000,
   'claude-3.5-sonnet': 8192,
   'claude-3-5-sonnet': 8192,
+  'claude-3.7-sonnet': 128000,
+  'claude-3-7-sonnet': 128000,
 };
 
 const maxOutputTokensMap = {
@@ -435,10 +479,11 @@ const tiktokenModels = new Set([
 ]);
 
 module.exports = {
-  tiktokenModels,
-  maxTokensMap,
   inputSchema,
   modelSchema,
+  maxTokensMap,
+  tiktokenModels,
+  maxOutputTokensMap,
   matchModelName,
   processModelData,
   getModelMaxTokens,

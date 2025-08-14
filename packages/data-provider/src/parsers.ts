@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import type { ZodIssue } from 'zod';
 import type * as a from './types/assistants';
 import type * as s from './schemas';
@@ -13,32 +14,29 @@ import {
   // agentsSchema,
   compactAgentsSchema,
   compactGoogleSchema,
-  compactChatGPTSchema,
-  chatGPTBrowserSchema,
   compactPluginsSchema,
   compactAssistantSchema,
 } from './schemas';
 import { bedrockInputSchema } from './bedrock';
-import { extractEnvVariable } from './utils';
 import { alternateName } from './config';
 
 type EndpointSchema =
   | typeof openAISchema
   | typeof googleSchema
   | typeof anthropicSchema
-  | typeof chatGPTBrowserSchema
   | typeof gptPluginsSchema
   | typeof assistantSchema
   | typeof compactAgentsSchema
   | typeof bedrockInputSchema;
 
-const endpointSchemas: Record<EModelEndpoint, EndpointSchema> = {
+export type EndpointSchemaKey = Exclude<EModelEndpoint, EModelEndpoint.chatGPTBrowser>;
+
+const endpointSchemas: Record<EndpointSchemaKey, EndpointSchema> = {
   [EModelEndpoint.openAI]: openAISchema,
   [EModelEndpoint.azureOpenAI]: openAISchema,
   [EModelEndpoint.custom]: openAISchema,
   [EModelEndpoint.google]: googleSchema,
   [EModelEndpoint.anthropic]: anthropicSchema,
-  [EModelEndpoint.chatGPTBrowser]: chatGPTBrowserSchema,
   [EModelEndpoint.gptPlugins]: gptPluginsSchema,
   [EModelEndpoint.assistants]: assistantSchema,
   [EModelEndpoint.azureAssistants]: assistantSchema,
@@ -123,19 +121,6 @@ export function errorsToString(errors: ZodIssue[]) {
     .join(' ');
 }
 
-/** Resolves header values to env variables if detected */
-export function resolveHeaders(headers: Record<string, string> | undefined) {
-  const resolvedHeaders = { ...(headers ?? {}) };
-
-  if (headers && typeof headers === 'object' && !Array.isArray(headers)) {
-    Object.keys(headers).forEach((key) => {
-      resolvedHeaders[key] = extractEnvVariable(headers[key]);
-    });
-  }
-
-  return resolvedHeaders;
-}
-
 export function getFirstDefinedValue(possibleValues: string[]) {
   let returnValue;
   for (const value of possibleValues) {
@@ -167,8 +152,8 @@ export const parseConvo = ({
   conversation,
   possibleValues,
 }: {
-  endpoint: EModelEndpoint;
-  endpointType?: EModelEndpoint | null;
+  endpoint: EndpointSchemaKey;
+  endpointType?: EndpointSchemaKey | null;
   conversation: Partial<s.TConversation | s.TPreset> | null;
   possibleValues?: TPossibleValues;
   // TODO: POC for default schema
@@ -226,12 +211,14 @@ const extractOmniVersion = (modelStr: string): string => {
 export const getResponseSender = (endpointOption: t.TEndpointOption): string => {
   const {
     model: _m,
-    endpoint,
+    endpoint: _e,
     endpointType,
     modelDisplayLabel: _mdl,
     chatGptLabel: _cgl,
     modelLabel: _ml,
   } = endpointOption;
+
+  const endpoint = _e as EModelEndpoint;
 
   const model = _m ?? '';
   const modelDisplayLabel = _mdl ?? '';
@@ -252,8 +239,10 @@ export const getResponseSender = (endpointOption: t.TEndpointOption): string => 
       return modelLabel;
     } else if (model && extractOmniVersion(model)) {
       return extractOmniVersion(model);
-    } else if (model && model.includes('mistral')) {
+    } else if (model && (model.includes('mistral') || model.includes('codestral'))) {
       return 'Mistral';
+    } else if (model && model.includes('deepseek')) {
+      return 'Deepseek';
     } else if (model && model.includes('gpt-')) {
       const gptVersion = extractGPTVersion(model);
       return gptVersion || 'GPT';
@@ -272,13 +261,11 @@ export const getResponseSender = (endpointOption: t.TEndpointOption): string => 
   if (endpoint === EModelEndpoint.google) {
     if (modelLabel) {
       return modelLabel;
-    } else if (model && (model.includes('gemini') || model.includes('learnlm'))) {
-      return 'Gemini';
-    } else if (model && model.includes('code')) {
-      return 'Codey';
+    } else if (model?.toLowerCase().includes('gemma') === true) {
+      return 'Gemma';
     }
 
-    return 'PaLM2';
+    return 'Gemini';
   }
 
   if (endpoint === EModelEndpoint.custom || endpointType === EModelEndpoint.custom) {
@@ -288,8 +275,10 @@ export const getResponseSender = (endpointOption: t.TEndpointOption): string => 
       return chatGptLabel;
     } else if (model && extractOmniVersion(model)) {
       return extractOmniVersion(model);
-    } else if (model && model.includes('mistral')) {
+    } else if (model && (model.includes('mistral') || model.includes('codestral'))) {
       return 'Mistral';
+    } else if (model && model.includes('deepseek')) {
+      return 'Deepseek';
     } else if (model && model.includes('gpt-')) {
       const gptVersion = extractGPTVersion(model);
       return gptVersion || 'GPT';
@@ -309,11 +298,10 @@ type CompactEndpointSchema =
   | typeof compactAgentsSchema
   | typeof compactGoogleSchema
   | typeof anthropicSchema
-  | typeof compactChatGPTSchema
   | typeof bedrockInputSchema
   | typeof compactPluginsSchema;
 
-const compactEndpointSchemas: Record<string, CompactEndpointSchema> = {
+const compactEndpointSchemas: Record<EndpointSchemaKey, CompactEndpointSchema> = {
   [EModelEndpoint.openAI]: openAISchema,
   [EModelEndpoint.azureOpenAI]: openAISchema,
   [EModelEndpoint.custom]: openAISchema,
@@ -323,7 +311,6 @@ const compactEndpointSchemas: Record<string, CompactEndpointSchema> = {
   [EModelEndpoint.google]: compactGoogleSchema,
   [EModelEndpoint.bedrock]: bedrockInputSchema,
   [EModelEndpoint.anthropic]: anthropicSchema,
-  [EModelEndpoint.chatGPTBrowser]: compactChatGPTSchema,
   [EModelEndpoint.gptPlugins]: compactPluginsSchema,
 };
 
@@ -333,8 +320,8 @@ export const parseCompactConvo = ({
   conversation,
   possibleValues,
 }: {
-  endpoint?: EModelEndpoint;
-  endpointType?: EModelEndpoint | null;
+  endpoint?: EndpointSchemaKey;
+  endpointType?: EndpointSchemaKey | null;
   conversation: Partial<s.TConversation | s.TPreset>;
   possibleValues?: TPossibleValues;
   // TODO: POC for default schema
@@ -371,7 +358,10 @@ export const parseCompactConvo = ({
   return convo;
 };
 
-export function parseTextParts(contentParts: a.TMessageContentParts[]): string {
+export function parseTextParts(
+  contentParts: a.TMessageContentParts[],
+  skipReasoning: boolean = false,
+): string {
   let result = '';
 
   for (const part of contentParts) {
@@ -390,7 +380,7 @@ export function parseTextParts(contentParts: a.TMessageContentParts[]): string {
         result += ' ';
       }
       result += textValue;
-    } else if (part.type === ContentTypes.THINK) {
+    } else if (part.type === ContentTypes.THINK && !skipReasoning) {
       const textValue = typeof part.think === 'string' ? part.think : '';
       if (
         result.length > 0 &&
@@ -418,4 +408,29 @@ export function findLastSeparatorIndex(text: string, separators = SEPARATORS): n
     }
   }
   return lastIndex;
+}
+
+export function replaceSpecialVars({ text, user }: { text: string; user?: t.TUser | null }) {
+  let result = text;
+  if (!result) {
+    return result;
+  }
+
+  // e.g., "2024-04-29 (1)" (1=Monday)
+  const currentDate = dayjs().format('YYYY-MM-DD');
+  const dayNumber = dayjs().day();
+  const combinedDate = `${currentDate} (${dayNumber})`;
+  result = result.replace(/{{current_date}}/gi, combinedDate);
+
+  const currentDatetime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  result = result.replace(/{{current_datetime}}/gi, `${currentDatetime} (${dayNumber})`);
+
+  const isoDatetime = dayjs().toISOString();
+  result = result.replace(/{{iso_datetime}}/gi, isoDatetime);
+
+  if (user && user.name) {
+    result = result.replace(/{{current_user}}/gi, user.name);
+  }
+
+  return result;
 }

@@ -1,11 +1,17 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { EModelEndpoint, isAgentsEndpoint, Constants, QueryKeys } from 'librechat-data-provider';
+import {
+  Constants,
+  QueryKeys,
+  EModelEndpoint,
+  isAssistantsEndpoint,
+} from 'librechat-data-provider';
 import type { TConversation, TPreset, Agent } from 'librechat-data-provider';
 import useDefaultConvo from '~/hooks/Conversations/useDefaultConvo';
 import { useAgentsMapContext } from '~/Providers/AgentsMapContext';
-import { useGetAgentByIdQuery } from '~/data-provider';
 import { useChatContext } from '~/Providers/ChatContext';
+import { useGetAgentByIdQuery } from '~/data-provider';
+import { logger } from '~/utils';
 
 export default function useSelectAgent() {
   const queryClient = useQueryClient();
@@ -17,27 +23,28 @@ export default function useSelectAgent() {
   );
 
   const agentQuery = useGetAgentByIdQuery(selectedAgentId ?? '', {
-    enabled: !!(selectedAgentId ?? ''),
+    enabled: !!(selectedAgentId ?? '') && selectedAgentId !== Constants.EPHEMERAL_AGENT_ID,
   });
 
   const updateConversation = useCallback(
     (agent: Partial<Agent>, template: Partial<TPreset | TConversation>) => {
-      if (isAgentsEndpoint(conversation?.endpoint)) {
-        const currentConvo = getDefaultConversation({
-          conversation: { ...(conversation ?? {}), agent_id: agent.id },
-          preset: template,
-        });
-        newConversation({
-          template: currentConvo,
-          preset: template as Partial<TPreset>,
-          keepLatestMessage: true,
-        });
-      } else {
+      logger.log('conversation', 'Updating conversation with agent', agent);
+      if (isAssistantsEndpoint(conversation?.endpoint)) {
         newConversation({
           template: { ...(template as Partial<TConversation>) },
           preset: template as Partial<TPreset>,
         });
+        return;
       }
+      const currentConvo = getDefaultConversation({
+        conversation: { ...(conversation ?? {}), agent_id: agent.id },
+        preset: template,
+      });
+      newConversation({
+        template: currentConvo,
+        preset: template as Partial<TPreset>,
+        keepLatestMessage: true,
+      });
     },
     [conversation, getDefaultConversation, newConversation],
   );

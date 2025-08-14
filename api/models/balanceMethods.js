@@ -1,9 +1,13 @@
+const { logger } = require('@librechat/data-schemas');
 const { ViolationTypes } = require('librechat-data-provider');
-const { Transaction } = require('./Transaction');
+const { createAutoRefillTransaction } = require('./Transaction');
 const { logViolation } = require('~/cache');
 const { getMultiplier } = require('./tx');
-const { logger } = require('~/config');
-const Balance = require('./Balance');
+const { Balance } = require('~/db/models');
+
+function isInvalidDate(date) {
+  return isNaN(date);
+}
 
 /**
  * Simple check method that calculates token cost and returns balance info.
@@ -48,16 +52,15 @@ const checkBalanceRecord = async function ({
   // Only perform auto-refill if spending would bring the balance to 0 or below
   if (balance - tokenCost <= 0 && record.autoRefillEnabled && record.refillAmount > 0) {
     const lastRefillDate = new Date(record.lastRefill);
-    const nextRefillDate = addIntervalToDate(
-      lastRefillDate,
-      record.refillIntervalValue,
-      record.refillIntervalUnit,
-    );
     const now = new Date();
-    if (now >= nextRefillDate) {
+    if (
+      isInvalidDate(lastRefillDate) ||
+      now >=
+        addIntervalToDate(lastRefillDate, record.refillIntervalValue, record.refillIntervalUnit)
+    ) {
       try {
         /** @type {{ rate: number, user: string, balance: number, transaction: import('@librechat/data-schemas').ITransaction}} */
-        const result = await Transaction.createAutoRefillTransaction({
+        const result = await createAutoRefillTransaction({
           user: user,
           tokenType: 'credits',
           context: 'autoRefill',

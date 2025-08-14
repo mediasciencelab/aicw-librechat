@@ -55,6 +55,26 @@ export default function useStepHandler({
   const messageMap = useRef(new Map<string, TMessage>());
   const stepMap = useRef(new Map<string, Agents.RunStep>());
 
+  const calculateContentIndex = (
+    baseIndex: number,
+    initialContent: TMessageContentParts[],
+    incomingContentType: string,
+    existingContent?: TMessageContentParts[],
+  ): number => {
+    /** Only apply -1 adjustment for TEXT or THINK types when they match existing content */
+    if (
+      initialContent.length > 0 &&
+      (incomingContentType === ContentTypes.TEXT || incomingContentType === ContentTypes.THINK)
+    ) {
+      const targetIndex = baseIndex + initialContent.length - 1;
+      const existingType = existingContent?.[targetIndex]?.type;
+      if (existingType === incomingContentType) {
+        return targetIndex;
+      }
+    }
+    return baseIndex + initialContent.length;
+  };
+
   const updateContent = (
     message: TMessage,
     index: number,
@@ -123,11 +143,14 @@ export default function useStepHandler({
     } else if (contentType === ContentTypes.TOOL_CALL && 'tool_call' in contentPart) {
       const existingContent = updatedContent[index] as Agents.ToolCallContent | undefined;
       const existingToolCall = existingContent?.tool_call;
-      const toolCallArgs = (contentPart.tool_call.args as unknown as string | undefined) ?? '';
-
-      const args = finalUpdate
-        ? contentPart.tool_call.args
-        : (existingToolCall?.args ?? '') + toolCallArgs;
+      const toolCallArgs = (contentPart.tool_call as Agents.ToolCall).args;
+      /** When args are a valid object, they are likely already invoked */
+      const args =
+        finalUpdate ||
+        typeof existingToolCall?.args === 'object' ||
+        typeof toolCallArgs === 'object'
+          ? contentPart.tool_call.args
+          : (existingToolCall?.args ?? '') + (toolCallArgs ?? '');
 
       const id = getNonEmptyValue([contentPart.tool_call.id, existingToolCall?.id]) ?? '';
       const name = getNonEmptyValue([contentPart.tool_call.name, existingToolCall?.name]) ?? '';
@@ -167,6 +190,11 @@ export default function useStepHandler({
         lastAnnouncementTimeRef.current = currentTime;
       }
 
+      let initialContent: TMessageContentParts[] = [];
+      if (submission?.editedContent != null) {
+        initialContent = submission?.initialResponse?.content ?? initialContent;
+      }
+
       if (event === 'on_run_step') {
         const runStep = data as Agents.RunStep;
         const responseMessageId = runStep.runId ?? '';
@@ -186,7 +214,7 @@ export default function useStepHandler({
             parentMessageId: userMessage.messageId,
             conversationId: userMessage.conversationId,
             messageId: responseMessageId,
-            content: [],
+            content: initialContent,
           };
 
           messageMap.current.set(responseMessageId, response);
@@ -195,12 +223,33 @@ export default function useStepHandler({
 
         // Store tool call IDs if present
         if (runStep.stepDetails.type === StepTypes.TOOL_CALLS) {
-          runStep.stepDetails.tool_calls.forEach((toolCall) => {
+          let updatedResponse = { ...response };
+          (runStep.stepDetails.tool_calls as Agents.ToolCall[]).forEach((toolCall) => {
             const toolCallId = toolCall.id ?? '';
             if ('id' in toolCall && toolCallId) {
               toolCallIdMap.current.set(runStep.id, toolCallId);
             }
+
+            const contentPart: Agents.MessageContentComplex = {
+              type: ContentTypes.TOOL_CALL,
+              tool_call: {
+                name: toolCall.name ?? '',
+                args: toolCall.args,
+                id: toolCallId,
+              },
+            };
+
+            /** Tool calls don't need index adjustment */
+            const currentIndex = runStep.index + initialContent.length;
+            updatedResponse = updateContent(updatedResponse, currentIndex, contentPart);
           });
+
+          messageMap.current.set(responseMessageId, updatedResponse);
+          const updatedMessages = messages.map((msg) =>
+            msg.messageId === runStep.runId ? updatedResponse : msg,
+          );
+
+          setMessages(updatedMessages);
         }
       } else if (event === 'on_agent_update') {
         const { agent_update } = data as Agents.AgentUpdate;
@@ -212,7 +261,9 @@ export default function useStepHandler({
 
         const response = messageMap.current.get(responseMessageId);
         if (response) {
-          const updatedResponse = updateContent(response, agent_update.index, data);
+          // Agent updates don't need index adjustment
+          const currentIndex = agent_update.index + initialContent.length;
+          const updatedResponse = updateContent(response, currentIndex, data);
           messageMap.current.set(responseMessageId, updatedResponse);
           const currentMessages = getMessages() || [];
           setMessages([...currentMessages.slice(0, -1), updatedResponse]);
@@ -233,7 +284,13 @@ export default function useStepHandler({
             ? messageDelta.delta.content[0]
             : messageDelta.delta.content;
 
-          const updatedResponse = updateContent(response, runStep.index, contentPart);
+          const currentIndex = calculateContentIndex(
+            runStep.index,
+            initialContent,
+            contentPart.type || '',
+            response.content,
+          );
+          const updatedResponse = updateContent(response, currentIndex, contentPart);
 
           messageMap.current.set(responseMessageId, updatedResponse);
           const currentMessages = getMessages() || [];
@@ -255,7 +312,13 @@ export default function useStepHandler({
             ? reasoningDelta.delta.content[0]
             : reasoningDelta.delta.content;
 
-          const updatedResponse = updateContent(response, runStep.index, contentPart);
+          const currentIndex = calculateContentIndex(
+            runStep.index,
+            initialContent,
+            contentPart.type || '',
+            response.content,
+          );
+          const updatedResponse = updateContent(response, currentIndex, contentPart);
 
           messageMap.current.set(responseMessageId, updatedResponse);
           const currentMessages = getMessages() || [];
@@ -296,7 +359,9 @@ export default function useStepHandler({
               contentPart.tool_call.expires_at = runStepDelta.delta.expires_at;
             }
 
-            updatedResponse = updateContent(updatedResponse, runStep.index, contentPart);
+            /** Tool calls don't need index adjustment */
+            const currentIndex = runStep.index + initialContent.length;
+            updatedResponse = updateContent(updatedResponse, currentIndex, contentPart);
           });
 
           messageMap.current.set(responseMessageId, updatedResponse);
@@ -328,7 +393,9 @@ export default function useStepHandler({
             tool_call: result.tool_call,
           };
 
-          updatedResponse = updateContent(updatedResponse, runStep.index, contentPart, true);
+          /** Tool calls don't need index adjustment */
+          const currentIndex = runStep.index + initialContent.length;
+          updatedResponse = updateContent(updatedResponse, currentIndex, contentPart, true);
 
           messageMap.current.set(responseMessageId, updatedResponse);
           const updatedMessages = messages.map((msg) =>

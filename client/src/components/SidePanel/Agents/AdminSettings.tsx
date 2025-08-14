@@ -3,12 +3,19 @@ import { useMemo, useEffect, useState } from 'react';
 import { ShieldEllipsis } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { Permissions, SystemRoles, roleDefaults, PermissionTypes } from 'librechat-data-provider';
+import {
+  OGDialog,
+  OGDialogTitle,
+  OGDialogContent,
+  OGDialogTrigger,
+  Button,
+  Switch,
+  DropdownPopup,
+  useToastContext,
+} from '@librechat/client';
 import type { Control, UseFormSetValue, UseFormGetValues } from 'react-hook-form';
-import { OGDialog, OGDialogTitle, OGDialogContent, OGDialogTrigger } from '~/components/ui';
 import { useUpdateAgentPermissionsMutation } from '~/data-provider';
-import { Button, Switch, DropdownPopup } from '~/components/ui';
 import { useLocalize, useAuthContext } from '~/hooks';
-import { useToastContext } from '~/Providers';
 
 type FormValues = Record<Permissions, boolean>;
 
@@ -72,10 +79,10 @@ const AdminSettings = () => {
   const [selectedRole, setSelectedRole] = useState<SystemRoles>(SystemRoles.USER);
 
   const defaultValues = useMemo(() => {
-    if (roles?.[selectedRole]) {
-      return roles[selectedRole][PermissionTypes.AGENTS];
+    if (roles?.[selectedRole]?.permissions) {
+      return roles[selectedRole].permissions[PermissionTypes.AGENTS];
     }
-    return roleDefaults[selectedRole][PermissionTypes.AGENTS];
+    return roleDefaults[selectedRole].permissions[PermissionTypes.AGENTS];
   }, [roles, selectedRole]);
 
   const {
@@ -91,10 +98,10 @@ const AdminSettings = () => {
   });
 
   useEffect(() => {
-    if (roles?.[selectedRole]?.[PermissionTypes.AGENTS]) {
-      reset(roles[selectedRole][PermissionTypes.AGENTS]);
+    if (roles?.[selectedRole]?.permissions?.[PermissionTypes.AGENTS]) {
+      reset(roles[selectedRole].permissions[PermissionTypes.AGENTS]);
     } else {
-      reset(roleDefaults[selectedRole][PermissionTypes.AGENTS]);
+      reset(roleDefaults[selectedRole].permissions[PermissionTypes.AGENTS]);
     }
   }, [roles, selectedRole, reset]);
 
@@ -157,6 +164,7 @@ const AdminSettings = () => {
           <div className="flex items-center gap-2">
             <span className="font-medium">{localize('com_ui_role_select')}:</span>
             <DropdownPopup
+              unmountOnHide={true}
               menuId="role-dropdown"
               isOpen={isRoleMenuOpen}
               setIsOpen={setIsRoleMenuOpen}

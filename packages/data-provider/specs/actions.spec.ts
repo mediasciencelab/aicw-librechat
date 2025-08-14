@@ -1,6 +1,8 @@
-import axios from 'axios';
 import { z } from 'zod';
-import { OpenAPIV3 } from 'openapi-types';
+import axios from 'axios';
+import type { OpenAPIV3 } from 'openapi-types';
+import type { ParametersSchema } from '../src/actions';
+import type { FlowchartSchema } from './openapiSpecs';
 import {
   createURL,
   resolveRef,
@@ -15,9 +17,7 @@ import {
   scholarAIOpenapiSpec,
   swapidev,
 } from './openapiSpecs';
-import { AuthorizationTypeEnum, AuthTypeEnum } from '../src/types/assistants';
-import type { FlowchartSchema } from './openapiSpecs';
-import type { ParametersSchema } from '../src/actions';
+import { AuthorizationTypeEnum, AuthTypeEnum } from '../src/types/agents';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -205,6 +205,242 @@ describe('ActionRequest', () => {
           endDate: '2023-12-31',
         },
       });
+    });
+
+    it('handles GET requests with header and query parameters', async () => {
+      mockedAxios.get.mockResolvedValue({ data: { success: true } });
+
+      const data: Record<string, unknown> = {
+        'api-version': '2025-01-01',
+        'some-header': 'header-var',
+      };
+
+      const loc: Record<string, 'query' | 'path' | 'header' | 'body'> = {
+        'api-version': 'query',
+        'some-header': 'header',
+      };
+
+      const actionRequest = new ActionRequest(
+        'https://example.com',
+        '/get',
+        'GET',
+        'testGET',
+        false,
+        '',
+        loc,
+      );
+      const executer = actionRequest.setParams(data);
+      const response = await executer.execute();
+      expect(mockedAxios.get).toHaveBeenCalled();
+
+      const [url, config] = mockedAxios.get.mock.calls[0];
+      expect(url).toBe('https://example.com/get');
+      expect(config?.headers).toEqual({
+        'some-header': 'header-var',
+      });
+      expect(config?.params).toEqual({
+        'api-version': '2025-01-01',
+      });
+      expect(response.data.success).toBe(true);
+    });
+
+    it('handles GET requests with header and path parameters', async () => {
+      mockedAxios.get.mockResolvedValue({ data: { success: true } });
+
+      const data: Record<string, unknown> = {
+        'user-id': '1',
+        'some-header': 'header-var',
+      };
+
+      const loc: Record<string, 'query' | 'path' | 'header' | 'body'> = {
+        'user-id': 'path',
+        'some-header': 'header',
+      };
+
+      const actionRequest = new ActionRequest(
+        'https://example.com',
+        '/getwithpath/{user-id}',
+        'GET',
+        'testGETwithpath',
+        false,
+        '',
+        loc,
+      );
+      const executer = actionRequest.setParams(data);
+      const response = await executer.execute();
+      expect(mockedAxios.get).toHaveBeenCalled();
+
+      const [url, config] = mockedAxios.get.mock.calls[0];
+      expect(url).toBe('https://example.com/getwithpath/1');
+      expect(config?.headers).toEqual({
+        'some-header': 'header-var',
+      });
+      expect(config?.params).toEqual({});
+      expect(response.data.success).toBe(true);
+    });
+
+    it('handles POST requests with body, header and query parameters', async () => {
+      mockedAxios.post.mockResolvedValue({ data: { success: true } });
+
+      const data: Record<string, unknown> = {
+        'api-version': '2025-01-01',
+        message: 'a body parameter',
+        'some-header': 'header-var',
+      };
+
+      const loc: Record<string, 'query' | 'path' | 'header' | 'body'> = {
+        'api-version': 'query',
+        message: 'body',
+        'some-header': 'header',
+      };
+
+      const actionRequest = new ActionRequest(
+        'https://example.com',
+        '/post',
+        'POST',
+        'testPost',
+        false,
+        'application/json',
+        loc,
+      );
+      const executer = actionRequest.setParams(data);
+      const response = await executer.execute();
+      expect(mockedAxios.post).toHaveBeenCalled();
+
+      const [url, body, config] = mockedAxios.post.mock.calls[0];
+      expect(url).toBe('https://example.com/post');
+      expect(body).toEqual({ message: 'a body parameter' });
+      expect(config?.headers).toEqual({
+        'some-header': 'header-var',
+        'Content-Type': 'application/json',
+      });
+      expect(config?.params).toEqual({
+        'api-version': '2025-01-01',
+      });
+      expect(response.data.success).toBe(true);
+    });
+
+    it('handles PUT requests with body, header and query parameters', async () => {
+      mockedAxios.put.mockResolvedValue({ data: { success: true } });
+
+      const data: Record<string, unknown> = {
+        'api-version': '2025-01-01',
+        message: 'a body parameter',
+        'some-header': 'header-var',
+      };
+
+      const loc: Record<string, 'query' | 'path' | 'header' | 'body'> = {
+        'api-version': 'query',
+        message: 'body',
+        'some-header': 'header',
+      };
+
+      const actionRequest = new ActionRequest(
+        'https://example.com',
+        '/put',
+        'PUT',
+        'testPut',
+        false,
+        'application/json',
+        loc,
+      );
+      const executer = actionRequest.setParams(data);
+      const response = await executer.execute();
+      expect(mockedAxios.put).toHaveBeenCalled();
+
+      const [url, body, config] = mockedAxios.put.mock.calls[0];
+      expect(url).toBe('https://example.com/put');
+      expect(body).toEqual({ message: 'a body parameter' });
+      expect(config?.headers).toEqual({
+        'some-header': 'header-var',
+        'Content-Type': 'application/json',
+      });
+      expect(config?.params).toEqual({
+        'api-version': '2025-01-01',
+      });
+      expect(response.data.success).toBe(true);
+    });
+
+    it('handles PATCH requests with body, header and query parameters', async () => {
+      mockedAxios.patch.mockResolvedValue({ data: { success: true } });
+
+      const data: Record<string, unknown> = {
+        'api-version': '2025-01-01',
+        message: 'a body parameter',
+        'some-header': 'header-var',
+      };
+
+      const loc: Record<string, 'query' | 'path' | 'header' | 'body'> = {
+        'api-version': 'query',
+        message: 'body',
+        'some-header': 'header',
+      };
+
+      const actionRequest = new ActionRequest(
+        'https://example.com',
+        '/patch',
+        'PATCH',
+        'testPatch',
+        false,
+        'application/json',
+        loc,
+      );
+      const executer = actionRequest.setParams(data);
+      const response = await executer.execute();
+      expect(mockedAxios.patch).toHaveBeenCalled();
+
+      const [url, body, config] = mockedAxios.patch.mock.calls[0];
+      expect(url).toBe('https://example.com/patch');
+      expect(body).toEqual({ message: 'a body parameter' });
+      expect(config?.headers).toEqual({
+        'some-header': 'header-var',
+        'Content-Type': 'application/json',
+      });
+      expect(config?.params).toEqual({
+        'api-version': '2025-01-01',
+      });
+      expect(response.data.success).toBe(true);
+    });
+
+    it('handles DELETE requests with body, header and query parameters', async () => {
+      mockedAxios.delete.mockResolvedValue({ data: { success: true } });
+
+      const data: Record<string, unknown> = {
+        'api-version': '2025-01-01',
+        'message-id': '1',
+        'some-header': 'header-var',
+      };
+
+      const loc: Record<string, 'query' | 'path' | 'header' | 'body'> = {
+        'api-version': 'query',
+        'message-id': 'body',
+        'some-header': 'header',
+      };
+
+      const actionRequest = new ActionRequest(
+        'https://example.com',
+        '/delete',
+        'DELETE',
+        'testDelete',
+        false,
+        'application/json',
+        loc,
+      );
+      const executer = actionRequest.setParams(data);
+      const response = await executer.execute();
+      expect(mockedAxios.delete).toHaveBeenCalled();
+
+      const [url, config] = mockedAxios.delete.mock.calls[0];
+      expect(url).toBe('https://example.com/delete');
+      expect(config?.data).toEqual({ 'message-id': '1' });
+      expect(config?.headers).toEqual({
+        'some-header': 'header-var',
+        'Content-Type': 'application/json',
+      });
+      expect(config?.params).toEqual({
+        'api-version': '2025-01-01',
+      });
+      expect(response.data.success).toBe(true);
     });
   });
 

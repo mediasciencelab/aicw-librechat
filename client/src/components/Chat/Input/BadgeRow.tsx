@@ -1,22 +1,34 @@
 import React, {
-  useState,
+  memo,
   useRef,
-  useEffect,
-  useCallback,
   useMemo,
+  useState,
+  useEffect,
   forwardRef,
   useReducer,
+  useCallback,
 } from 'react';
+import { Badge } from '@librechat/client';
 import { useRecoilValue, useRecoilCallback } from 'recoil';
 import type { LucideIcon } from 'lucide-react';
+import CodeInterpreter from './CodeInterpreter';
+import { BadgeRowProvider } from '~/Providers';
+import ToolsDropdown from './ToolsDropdown';
 import type { BadgeItem } from '~/common';
 import { useChatBadges } from '~/hooks';
-import { Badge } from '~/components/ui';
+import ToolDialogs from './ToolDialogs';
+import FileSearch from './FileSearch';
+import Artifacts from './Artifacts';
+import MCPSelect from './MCPSelect';
+import WebSearch from './WebSearch';
 import store from '~/store';
 
 interface BadgeRowProps {
+  showEphemeralBadges?: boolean;
   onChange: (badges: Pick<BadgeItem, 'id'>[]) => void;
   onToggle?: (badgeId: string, currentActive: boolean) => void;
+  conversationId?: string | null;
+  isSubmitting?: boolean;
   isInChat: boolean;
 }
 
@@ -33,7 +45,8 @@ interface BadgeWrapperProps {
 const BadgeWrapper = React.memo(
   forwardRef<HTMLDivElement, BadgeWrapperProps>(
     ({ badge, isEditing, isInChat, onToggle, onDelete, onMouseDown, badgeRefs }, ref) => {
-      const isActive = badge.atom ? useRecoilValue(badge.atom) : false;
+      const atomBadge = useRecoilValue(badge.atom);
+      const isActive = badge.atom ? atomBadge : false;
 
       return (
         <div
@@ -126,7 +139,14 @@ const dragReducer = (state: DragState, action: DragAction): DragState => {
   }
 };
 
-export function BadgeRow({ onChange, onToggle, isInChat }: BadgeRowProps) {
+function BadgeRow({
+  showEphemeralBadges,
+  conversationId,
+  isSubmitting,
+  onChange,
+  onToggle,
+  isInChat,
+}: BadgeRowProps) {
   const [orderedBadges, setOrderedBadges] = useState<BadgeItem[]>([]);
   const [dragState, dispatch] = useReducer(dragReducer, {
     draggedBadge: null,
@@ -141,7 +161,7 @@ export function BadgeRow({ onChange, onToggle, isInChat }: BadgeRowProps) {
   const animationFrame = useRef<number | null>(null);
   const containerRectRef = useRef<DOMRect | null>(null);
 
-  const allBadges = useChatBadges() || [];
+  const allBadges = useChatBadges();
   const isEditing = useRecoilValue(store.isEditingBadges);
 
   const badges = useMemo(
@@ -300,70 +320,85 @@ export function BadgeRow({ onChange, onToggle, isInChat }: BadgeRowProps) {
   }, [dragState.draggedBadge, handleMouseMove, handleMouseUp]);
 
   return (
-    <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
-      {tempBadges.map((badge, index) => (
-        <React.Fragment key={badge.id}>
-          {dragState.draggedBadge && dragState.insertIndex === index && ghostBadge && (
-            <div className="badge-icon h-full">
-              <Badge
-                id={ghostBadge.id}
-                icon={ghostBadge.icon as LucideIcon}
-                label={ghostBadge.label}
-                isActive={dragState.draggedBadgeActive}
-                isEditing={isEditing}
-                isAvailable={ghostBadge.isAvailable}
-                isInChat={isInChat}
-              />
-            </div>
-          )}
-          <BadgeWrapper
-            badge={badge}
-            isEditing={isEditing}
-            isInChat={isInChat}
-            onToggle={handleBadgeToggle}
-            onDelete={handleDelete}
-            onMouseDown={handleMouseDown}
-            badgeRefs={badgeRefs}
-          />
-        </React.Fragment>
-      ))}
-      {dragState.draggedBadge && dragState.insertIndex === tempBadges.length && ghostBadge && (
-        <div className="badge-icon h-full">
-          <Badge
-            id={ghostBadge.id}
-            icon={ghostBadge.icon as LucideIcon}
-            label={ghostBadge.label}
-            isActive={dragState.draggedBadgeActive}
-            isEditing={isEditing}
-            isAvailable={ghostBadge.isAvailable}
-            isInChat={isInChat}
-          />
-        </div>
-      )}
-      {ghostBadge && (
-        <div
-          className="ghost-badge h-full"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            transform: `translateX(${dragState.mouseX - dragState.offsetX - (containerRectRef.current?.left || 0)}px)`,
-            zIndex: 10,
-            pointerEvents: 'none',
-          }}
-        >
-          <Badge
-            id={ghostBadge.id}
-            icon={ghostBadge.icon as LucideIcon}
-            label={ghostBadge.label}
-            isActive={dragState.draggedBadgeActive}
-            isAvailable={ghostBadge.isAvailable}
-            isInChat={isInChat}
-            isEditing
-            isDragging
-          />
-        </div>
-      )}
-    </div>
+    <BadgeRowProvider conversationId={conversationId} isSubmitting={isSubmitting}>
+      <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
+        {showEphemeralBadges === true && <ToolsDropdown />}
+        {tempBadges.map((badge, index) => (
+          <React.Fragment key={badge.id}>
+            {dragState.draggedBadge && dragState.insertIndex === index && ghostBadge && (
+              <div className="badge-icon h-full">
+                <Badge
+                  id={ghostBadge.id}
+                  icon={ghostBadge.icon as LucideIcon}
+                  label={ghostBadge.label}
+                  isActive={dragState.draggedBadgeActive}
+                  isEditing={isEditing}
+                  isAvailable={ghostBadge.isAvailable}
+                  isInChat={isInChat}
+                />
+              </div>
+            )}
+            <BadgeWrapper
+              badge={badge}
+              isEditing={isEditing}
+              isInChat={isInChat}
+              onToggle={handleBadgeToggle}
+              onDelete={handleDelete}
+              onMouseDown={handleMouseDown}
+              badgeRefs={badgeRefs}
+            />
+          </React.Fragment>
+        ))}
+        {dragState.draggedBadge && dragState.insertIndex === tempBadges.length && ghostBadge && (
+          <div className="badge-icon h-full">
+            <Badge
+              id={ghostBadge.id}
+              icon={ghostBadge.icon as LucideIcon}
+              label={ghostBadge.label}
+              isActive={dragState.draggedBadgeActive}
+              isEditing={isEditing}
+              isAvailable={ghostBadge.isAvailable}
+              isInChat={isInChat}
+            />
+          </div>
+        )}
+        {showEphemeralBadges === true && (
+          <>
+            <WebSearch />
+            <CodeInterpreter />
+            <FileSearch />
+            <Artifacts />
+            <MCPSelect />
+          </>
+        )}
+        {ghostBadge && (
+          <div
+            className="ghost-badge h-full"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              transform: `translateX(${dragState.mouseX - dragState.offsetX - (containerRectRef.current?.left || 0)}px)`,
+              zIndex: 10,
+              pointerEvents: 'none',
+            }}
+          >
+            <Badge
+              id={ghostBadge.id}
+              icon={ghostBadge.icon as LucideIcon}
+              label={ghostBadge.label}
+              isActive={dragState.draggedBadgeActive}
+              isAvailable={ghostBadge.isAvailable}
+              isInChat={isInChat}
+              isEditing
+              isDragging
+            />
+          </div>
+        )}
+      </div>
+      <ToolDialogs />
+    </BadgeRowProvider>
   );
 }
+
+export default memo(BadgeRow);

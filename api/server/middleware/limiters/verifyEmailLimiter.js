@@ -1,11 +1,8 @@
-const Keyv = require('keyv');
 const rateLimit = require('express-rate-limit');
-const { RedisStore } = require('rate-limit-redis');
 const { ViolationTypes } = require('librechat-data-provider');
-const { removePorts, isEnabled } = require('~/server/utils');
-const keyvRedis = require('~/cache/keyvRedis');
+const { removePorts } = require('~/server/utils');
+const { limiterCache } = require('~/cache/cacheFactory');
 const { logViolation } = require('~/cache');
-const { logger } = require('~/config');
 
 const {
   VERIFY_EMAIL_WINDOW = 2,
@@ -34,19 +31,8 @@ const limiterOptions = {
   max,
   handler,
   keyGenerator: removePorts,
+  store: limiterCache('verify_email_limiter'),
 };
-
-if (isEnabled(process.env.USE_REDIS)) {
-  logger.debug('Using Redis for verify email rate limiter.');
-  const keyv = new Keyv({ store: keyvRedis });
-  const client = keyv.opts.store.redis;
-  const sendCommand = (...args) => client.call(...args);
-  const store = new RedisStore({
-    sendCommand,
-    prefix: 'verify_email_limiter:',
-  });
-  limiterOptions.store = store;
-}
 
 const verifyEmailLimiter = rateLimit(limiterOptions);
 

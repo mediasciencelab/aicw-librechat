@@ -1,7 +1,15 @@
 const jwt = require('jsonwebtoken');
 const { nanoid } = require('nanoid');
 const { tool } = require('@langchain/core/tools');
+const { logger } = require('@librechat/data-schemas');
 const { GraphEvents, sleep } = require('@librechat/agents');
+const {
+  sendEvent,
+  encryptV2,
+  decryptV2,
+  logAxiosError,
+  refreshAccessToken,
+} = require('@librechat/api');
 const {
   Time,
   CacheKeys,
@@ -12,13 +20,10 @@ const {
   isImageVisionTool,
   actionDomainSeparator,
 } = require('librechat-data-provider');
-const { refreshAccessToken } = require('~/server/services/TokenService');
-const { logger, getFlowStateManager, sendEvent } = require('~/config');
-const { encryptV2, decryptV2 } = require('~/server/utils/crypto');
+const { findToken, updateToken, createToken } = require('~/models');
 const { getActions, deleteActions } = require('~/models/Action');
 const { deleteAssistant } = require('~/models/Assistant');
-const { findToken } = require('~/models/Token');
-const { logAxiosError } = require('~/utils');
+const { getFlowStateManager } = require('~/config');
 const { getLogStores } = require('~/cache');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -50,7 +55,7 @@ const validateAndUpdateTool = async ({ req, tool, assistant_id }) => {
       return null;
     }
 
-    const parsedDomain = await domainParser(req, domain, true);
+    const parsedDomain = await domainParser(domain, true);
 
     if (!parsedDomain) {
       return null;
@@ -66,16 +71,14 @@ const validateAndUpdateTool = async ({ req, tool, assistant_id }) => {
  *
  * Necessary due to `[a-zA-Z0-9_-]*` Regex Validation, limited to a 64-character maximum.
  *
- * @param {Express.Request} req - The Express Request object.
  * @param {string} domain - The domain name to encode/decode.
  * @param {boolean} inverse - False to decode from base64, true to encode to base64.
  * @returns {Promise<string>} Encoded or decoded domain string.
  */
-async function domainParser(req, domain, inverse = false) {
+async function domainParser(domain, inverse = false) {
   if (!domain) {
     return;
   }
-
   const domainsCache = getLogStores(CacheKeys.ENCODED_DOMAINS);
   const cachedDomain = await domainsCache.get(domain);
   if (inverse && cachedDomain) {
@@ -122,7 +125,7 @@ async function loadActionSets(searchParams) {
  * Creates a general tool for an entire action set.
  *
  * @param {Object} params - The parameters for loading action sets.
- * @param {ServerRequest} params.req
+ * @param {string} params.userId
  * @param {ServerResponse} params.res
  * @param {Action} params.action - The action set. Necessary for decrypting authentication values.
  * @param {ActionRequest} params.requestBuilder - The ActionRequest builder class to execute the API call.
@@ -133,7 +136,7 @@ async function loadActionSets(searchParams) {
  * @returns { Promise<typeof tool | { _call: (toolInput: Object | string) => unknown}> } An object with `_call` method to execute the tool input.
  */
 async function createActionTool({
-  req,
+  userId,
   res,
   action,
   requestBuilder,
@@ -148,13 +151,13 @@ async function createActionTool({
       /** @type {import('librechat-data-provider').ActionMetadataRuntime} */
       const metadata = action.metadata;
       const executor = requestBuilder.createExecutor();
-      const preparedExecutor = executor.setParams(toolInput);
+      const preparedExecutor = executor.setParams(toolInput ?? {});
 
       if (metadata.auth && metadata.auth.type !== AuthTypeEnum.None) {
         try {
           if (metadata.auth.type === AuthTypeEnum.OAuth && metadata.auth.authorization_url) {
             const action_id = action.action_id;
-            const identifier = `${req.user.id}:${action.action_id}`;
+            const identifier = `${userId}:${action.action_id}`;
             const requestLogin = async () => {
               const { args: _args, stepId, ...toolCall } = config.toolCall ?? {};
               if (!stepId) {
@@ -162,7 +165,7 @@ async function createActionTool({
               }
               const statePayload = {
                 nonce: nanoid(),
-                user: req.user.id,
+                user: userId,
                 action_id,
               };
 
@@ -189,26 +192,34 @@ async function createActionTool({
                     expires_at: Date.now() + Time.TWO_MINUTES,
                   },
                 };
-                const flowManager = await getFlowStateManager(getLogStores);
+                const flowsCache = getLogStores(CacheKeys.FLOWS);
+                const flowManager = getFlowStateManager(flowsCache);
                 await flowManager.createFlowWithHandler(
-                  `${identifier}:login`,
+                  `${identifier}:oauth_login:${config.metadata.thread_id}:${config.metadata.run_id}`,
                   'oauth_login',
                   async () => {
                     sendEvent(res, { event: GraphEvents.ON_RUN_STEP_DELTA, data });
                     logger.debug('Sent OAuth login request to client', { action_id, identifier });
                     return true;
                   },
+                  config?.signal,
                 );
                 logger.debug('Waiting for OAuth Authorization response', { action_id, identifier });
-                const result = await flowManager.createFlow(identifier, 'oauth', {
-                  state: stateToken,
-                  userId: req.user.id,
-                  client_url: metadata.auth.client_url,
-                  redirect_uri: `${process.env.DOMAIN_CLIENT}/api/actions/${action_id}/oauth/callback`,
-                  /** Encrypted values */
-                  encrypted_oauth_client_id: encrypted.oauth_client_id,
-                  encrypted_oauth_client_secret: encrypted.oauth_client_secret,
-                });
+                const result = await flowManager.createFlow(
+                  identifier,
+                  'oauth',
+                  {
+                    state: stateToken,
+                    userId: userId,
+                    client_url: metadata.auth.client_url,
+                    redirect_uri: `${process.env.DOMAIN_SERVER}/api/actions/${action_id}/oauth/callback`,
+                    token_exchange_method: metadata.auth.token_exchange_method,
+                    /** Encrypted values */
+                    encrypted_oauth_client_id: encrypted.oauth_client_id,
+                    encrypted_oauth_client_secret: encrypted.oauth_client_secret,
+                  },
+                  config?.signal,
+                );
                 logger.debug('Received OAuth Authorization response', { action_id, identifier });
                 data.delta.auth = undefined;
                 data.delta.expires_at = undefined;
@@ -226,10 +237,10 @@ async function createActionTool({
             };
 
             const tokenPromises = [];
-            tokenPromises.push(findToken({ userId: req.user.id, type: 'oauth', identifier }));
+            tokenPromises.push(findToken({ userId, type: 'oauth', identifier }));
             tokenPromises.push(
               findToken({
-                userId: req.user.id,
+                userId,
                 type: 'oauth_refresh',
                 identifier: `${identifier}:refresh`,
               }),
@@ -251,19 +262,29 @@ async function createActionTool({
               try {
                 const refresh_token = await decryptV2(refreshTokenData.token);
                 const refreshTokens = async () =>
-                  await refreshAccessToken({
-                    identifier,
-                    refresh_token,
-                    userId: req.user.id,
-                    client_url: metadata.auth.client_url,
-                    encrypted_oauth_client_id: encrypted.oauth_client_id,
-                    encrypted_oauth_client_secret: encrypted.oauth_client_secret,
-                  });
-                const flowManager = await getFlowStateManager(getLogStores);
+                  await refreshAccessToken(
+                    {
+                      userId,
+                      identifier,
+                      refresh_token,
+                      client_url: metadata.auth.client_url,
+                      encrypted_oauth_client_id: encrypted.oauth_client_id,
+                      token_exchange_method: metadata.auth.token_exchange_method,
+                      encrypted_oauth_client_secret: encrypted.oauth_client_secret,
+                    },
+                    {
+                      findToken,
+                      updateToken,
+                      createToken,
+                    },
+                  );
+                const flowsCache = getLogStores(CacheKeys.FLOWS);
+                const flowManager = getFlowStateManager(flowsCache);
                 const refreshData = await flowManager.createFlowWithHandler(
                   `${identifier}:refresh`,
                   'oauth_refresh',
                   refreshTokens,
+                  config?.signal,
                 );
                 metadata.oauth_access_token = refreshData.access_token;
                 if (refreshData.refresh_token) {

@@ -1,6 +1,5 @@
 import { useRecoilState } from 'recoil';
-import { Dropdown } from '~/components/ui';
-import { applyFontSize } from '~/utils';
+import { Dropdown, applyFontSize } from '@librechat/client';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -30,6 +29,7 @@ export default function FontSizeSelector() {
         onChange={handleChange}
         testId="font-size-selector"
         sizeClasses="w-[150px]"
+        className="z-50"
       />
     </div>
   );
