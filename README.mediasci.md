@@ -239,9 +239,38 @@ stage in the `.sst/stage` file.
 * `scripts/list-users.sh` - List all Libre-Chat users.
 * `scripts/reset-password.sh` - Reset the password for a Libre-Chat user.
 * `scripts/user-stats.sh` - Get the stats for all Libre-Chat users.
+* `scripts/create-db-snapshot.sh` - Create an EBS snapshot of the environment's storage volume.
 
 **Example:**
 
 ```shell
 ./scripts/create-user.sh -s trajector
 ```
+
+## Backup Management
+
+### Creating EBS Snapshots
+
+You can create EBS snapshots of your environment's storage volume using the backup script:
+
+```shell
+./scripts/create-db-snapshot.sh -s <stage>
+```
+
+**Options:**
+- `-s <stage>` - Specify the environment stage (uses file `.sst/stage` if not already written)
+- `-d <description>` - Custom snapshot description (optional)
+
+**Examples:**
+```shell
+# Create snapshot for trajector environment
+./scripts/create-db-snapshot.sh -s trajector
+
+# Create snapshot with custom description
+./scripts/create-db-snapshot.sh -s staging -d "Pre-upgrade backup"
+```
+
+The script will:
+- Retrieve the EBS Volume ID from the Storage stack
+- Create a timestamped snapshot with consistent tagging
+- Provide monitoring command for checking snapshot progress
