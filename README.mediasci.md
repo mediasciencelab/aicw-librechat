@@ -134,6 +134,27 @@ pnpm sst deploy --stage <env> LoadBalancer
 pnpm sst deploy --stage <env> Instance
 ```
 
+## Version Tags
+
+The repository maintains several types of version tags to track important milestones and
+architectural changes:
+
+### Archive Tags
+- **archive/unshared-vpc** (2025-05-05) - Marks the project before migrating to shared VPC
+  architecture
+- **archive/v0.7.7** (2025-08-11) - This represents the last change before migrating to v0.8.x.
+
+### MediaSci Fork Tags
+- **mediasci/fork-1** (2025-04-01) - First point in upstream repository where fork occured.
+- **mediasci/fork-2** (2025-08-12) - Second point in upstream repository where fork occured.
+  This was where v0.8.0-rc2 was defined.
+
+**Tag Usage:**
+- `archive/` tags mark significant infrastructure changes or major refactoring points
+- `mediasci/` tags track specific fork points
+- These tags serve as reference points for understanding the evolution of the deployment
+  architecture and codebase
+
 ### Setting environment secrets
 
 Each environment requires several secrets to function properly. These secrets are encrypted using
