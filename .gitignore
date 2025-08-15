@@ -68,6 +68,8 @@ librechat.yml
 my.secrets
 !**/.env.example
 !**/.env.test.example
+!**/.env.epic
+!**/.env.trajector
 cache.json
 api/data/
 owner.yml
@@ -115,3 +117,8 @@ release/
 # sst
 .sst
 cdk.context.json
+
+# Snapshot ID files (exclude all except specific stages)
+.snapshot-id.*
+!.snapshot-id.trajector
+!.snapshot-id.epic
