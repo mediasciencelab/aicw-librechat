@@ -60,6 +60,29 @@ fi
 
 echo "EBS Volume ID: $volume_id"
 
+# Get the instance ID from the Instance stack
+instance_id=$(
+  aws cloudformation describe-stacks \
+    --stack-name ${stage}-aiwc-librechat-Instance \
+    --query "Stacks[0].Outputs[?OutputKey=='instanceId'].OutputValue" \
+    --output text
+)
+
+if [[ -z "$instance_id" ]] || [[ "$instance_id" == "None" ]]; then
+  echo "Warning: Could not find Instance ID for stage '$stage'. Taking snapshot with instance running."
+  echo "This may result in inconsistent data if the database is being written to during snapshot."
+else
+  echo "Instance ID: $instance_id"
+  
+  # Stop the instance for consistent snapshot
+  echo "Stopping EC2 instance for consistent snapshot..."
+  aws ec2 stop-instances --instance-ids "$instance_id"
+  
+  echo "Waiting for instance to stop..."
+  aws ec2 wait instance-stopped --instance-ids "$instance_id"
+  echo "Instance stopped successfully"
+fi
+
 # Create the snapshot
 echo "Creating EBS snapshot..."
 snapshot_id=$(
@@ -75,6 +98,17 @@ echo "Snapshot created successfully!"
 echo "Snapshot ID: $snapshot_id"
 echo "Volume ID: $volume_id"
 echo "Stage: $stage"
+
+# Restart the instance if we stopped it
+if [[ -n "$instance_id" ]] && [[ "$instance_id" != "None" ]]; then
+  echo ""
+  echo "Restarting EC2 instance..."
+  aws ec2 start-instances --instance-ids "$instance_id"
+  
+  echo "Waiting for instance to start..."
+  aws ec2 wait instance-running --instance-ids "$instance_id"
+  echo "Instance restarted successfully"
+fi
 
 echo ""
 echo "You can monitor the snapshot progress with:"

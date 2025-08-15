@@ -273,8 +273,12 @@ You can create EBS snapshots of your environment's storage volume using the back
 
 The script will:
 - Retrieve the EBS Volume ID from the Storage stack
+- Stop the EC2 instance to ensure data consistency (if Instance stack exists)
 - Create a timestamped snapshot with consistent tagging
+- Restart the EC2 instance
 - Provide monitoring command for checking snapshot progress
+
+**Note:** The script automatically stops and restarts the EC2 instance during snapshot creation to ensure database consistency. This results in brief downtime (~1-2 minutes) but guarantees a clean, consistent backup.
 
 ### Listing EBS Snapshots
 
