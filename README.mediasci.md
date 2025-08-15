@@ -278,7 +278,9 @@ The script will:
 - Restart the EC2 instance
 - Provide monitoring command for checking snapshot progress
 
-**Note:** The script automatically stops and restarts the EC2 instance during snapshot creation to ensure database consistency. This results in brief downtime (~1-2 minutes) but guarantees a clean, consistent backup.
+**Note:** The script automatically stops and restarts the EC2 instance during snapshot creation to
+ensure database consistency. This results in brief downtime (~1-2 minutes) but guarantees a clean,
+consistent backup.
 
 ### Listing EBS Snapshots
 
@@ -333,7 +335,8 @@ You can restore an environment from an EBS snapshot using the restore script:
 6. Redeploys the remaining stacks to restart the instance
 
 **Technical Implementation Note:**
-The snapshot restoration uses a file-based approach (`.snapshot-id.<stage>`) to pass the snapshot ID to the Storage stack during deployment. This approach was chosen because:
+The snapshot restoration uses a file-based approach (`.snapshot-id.<stage>`) to pass the snapshot
+ID to the Storage stack during deployment. This approach was chosen because:
 - EBS volumes must specify their snapshot ID at creation time - it cannot be changed later
 - SST Config.Parameter values are fixed when the stack is defined, not read dynamically
 - SST Config.Secret values can only be accessed inside Lambda functions, not during stack synthesis
