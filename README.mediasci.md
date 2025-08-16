@@ -239,9 +239,107 @@ stage in the `.sst/stage` file.
 * `scripts/list-users.sh` - List all Libre-Chat users.
 * `scripts/reset-password.sh` - Reset the password for a Libre-Chat user.
 * `scripts/user-stats.sh` - Get the stats for all Libre-Chat users.
+* `scripts/create-db-snapshot.sh` - Create an EBS snapshot of the environment's storage volume.
+* `scripts/list-db-snapshots.sh` - List EBS snapshots for an environment.
 
 **Example:**
 
 ```shell
 ./scripts/create-user.sh -s trajector
 ```
+
+## Backup Management
+
+### Creating EBS Snapshots
+
+You can create EBS snapshots of your environment's storage volume using the backup script:
+
+```shell
+./scripts/create-db-snapshot.sh -s <stage>
+```
+
+**Options:**
+- `-s <stage>` - Specify the environment stage (uses file `.sst/stage` if not already written)
+- `-d <description>` - Custom snapshot description (optional)
+
+**Examples:**
+```shell
+# Create snapshot for trajector environment
+./scripts/create-db-snapshot.sh -s trajector
+
+# Create snapshot with custom description
+./scripts/create-db-snapshot.sh -s staging -d "Pre-upgrade backup"
+```
+
+The script will:
+- Retrieve the EBS Volume ID from the Storage stack
+- Stop the EC2 instance to ensure data consistency (if Instance stack exists)
+- Create a timestamped snapshot with consistent tagging
+- Restart the EC2 instance
+- Provide monitoring command for checking snapshot progress
+
+**Note:** The script automatically stops and restarts the EC2 instance during snapshot creation to
+ensure database consistency. This results in brief downtime (~1-2 minutes) but guarantees a clean,
+consistent backup.
+
+### Listing EBS Snapshots
+
+You can list existing EBS snapshots for an environment:
+
+```shell
+./scripts/list-db-snapshots.sh -s <stage>
+```
+
+**Example:**
+```shell
+# List snapshots for trajector environment
+./scripts/list-db-snapshots.sh -s trajector
+```
+
+The script displays snapshots in a table format showing:
+- Snapshot ID
+- Creation time
+- Description
+- Snapshot name
+
+### Restoring from EBS Snapshots
+
+You can restore an environment from an EBS snapshot using the restore script:
+
+```shell
+./scripts/restore-db-snapshot.sh -s <stage> -n <snapshot-id>
+```
+
+**Options:**
+- `-s <stage>` - Specify the environment stage
+- `-n <snapshot-id>` - The snapshot ID to restore from (get this from `list-db-snapshots.sh`)
+
+**Example:**
+```shell
+# Restore trajector environment from a specific snapshot
+./scripts/restore-db-snapshot.sh -s trajector -n snap-12345678901234567
+```
+
+**⚠️ WARNING:** This operation will:
+- Stop the EC2 instance
+- Replace the current EBS volume with a new one created from the snapshot
+- All data since the snapshot was created will be LOST
+- The instance will restart with the restored data
+
+**How it works:**
+1. Verifies the snapshot exists and is in a completed state
+2. Stops the EC2 instance and removes the Instance stack
+3. Removes the Storage stack (destroying the current volume)
+4. Writes the snapshot ID to `.snapshot-id.<stage>` file
+5. Redeploys the Storage stack, which reads the snapshot ID from the file
+6. Redeploys the remaining stacks to restart the instance
+
+**Technical Implementation Note:**
+The snapshot restoration uses a file-based approach (`.snapshot-id.<stage>`) to pass the snapshot
+ID to the Storage stack during deployment. This approach was chosen because:
+- EBS volumes must specify their snapshot ID at creation time - it cannot be changed later
+- SST Config.Parameter values are fixed when the stack is defined, not read dynamically
+- SST Config.Secret values can only be accessed inside Lambda functions, not during stack synthesis
+- Environment variables from .env files were not being loaded consistently during deployment
+
+The `.snapshot-id.*` files are gitignored except for the `trajector` and `epic` stages.
