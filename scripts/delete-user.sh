@@ -4,4 +4,4 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 
-$this_dir/librechat-exec.sh $@ delete-user
+$this_dir/librechat-npm-run.sh $@ delete-user

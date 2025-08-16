@@ -270,7 +270,7 @@ environment's EC2 instance.
 * `scripts/ssh-add-instance.sh` - Add SSH key for an environment to the SSH agent.
 * `scripts/ssh-instance.sh` - SSH to the EC2 instance.
 * `scripts/librechat-shell.sh` - Open an interactive shell in the LibreChat Docker container.
-* `scripts/librechat-exec.sh` - Execute npm commands in the LibreChat Docker container.
+* `scripts/librechat-npm-run.sh` - Execute npm commands in the LibreChat Docker container.
 
 ### Backup Management
 * `scripts/create-db-snapshot.sh` - Create an EBS snapshot of the environment's storage volume.

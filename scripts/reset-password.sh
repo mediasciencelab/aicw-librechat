@@ -4,4 +4,4 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 
-$this_dir/librechat-exec.sh $@ reset-password
+$this_dir/librechat-npm-run.sh $@ reset-password
