@@ -242,16 +242,44 @@ stage in the `.sst/stage` file.
 ./scripts/ssh-instance.sh -s trajector
 ```
 
+## LibreChat Container Shell Access
+
+You can open an interactive shell directly inside the LibreChat Docker container using the
+`scripts/librechat-shell.sh` script. This is useful for debugging, running ad-hoc commands, or
+exploring the container environment.
+
+**Example:**
+
+```shell
+./scripts/librechat-shell.sh -s trajector
+```
+
+This will open a shell (`/bin/sh`) inside the running LibreChat container on the specified
+environment's EC2 instance.
+
 ## Commands
 
+### User Management
 * `scripts/create-user.sh` - Create a new Libre-Chat user.
 * `scripts/delete-user.sh` - Delete a Libre-Chat user.
 * `scripts/list-users.sh` - List all Libre-Chat users.
 * `scripts/reset-password.sh` - Reset the password for a Libre-Chat user.
 * `scripts/user-stats.sh` - Get the stats for all Libre-Chat users.
+
+### Instance Access
+* `scripts/ssh-add-instance.sh` - Add SSH key for an environment to the SSH agent.
+* `scripts/ssh-instance.sh` - SSH to the EC2 instance.
+* `scripts/librechat-shell.sh` - Open an interactive shell in the LibreChat Docker container.
+* `scripts/librechat-exec.sh` - Execute npm commands in the LibreChat Docker container.
+
+### Backup Management
 * `scripts/create-db-snapshot.sh` - Create an EBS snapshot of the environment's storage volume.
 * `scripts/list-db-snapshots.sh` - List EBS snapshots for an environment.
+* `scripts/restore-db-snapshot.sh` - Restore an environment from an EBS snapshot.
+
+### Development Tools
 * `scripts/update-lockfiles.sh` - Generate both npm and pnpm lock files for package compatibility.
+* `scripts/promote-ami.sh` - Promote an AMI from one environment to another.
 
 **Example:**
 
