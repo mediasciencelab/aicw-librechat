@@ -41,12 +41,7 @@ ssh_key_param=$(get_stack_output "$stage" "Static" "keyPairPrivateKeyParameter")
 echo "SSH key param: $ssh_key_param"
 
 # Retrieve the key
-
-ssh_key=$(aws ssm get-parameter \
-  --name $ssh_key_param \
-  --with-decryption \
-  --query Parameter.Value \
-  --output text)
+ssh_key=$(get_ssm_parameter "$ssh_key_param")
 
 # Retrieve the IP address of the instance
 instance_ip=$(get_stack_output "$stage" "Static" "libreChatIpAddress")

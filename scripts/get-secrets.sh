@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 source "$(dirname "$0")/lib/sst.sh"
+source "$(dirname "$0")/lib/aws.sh"
 
 stage=$(get_stage)
 
@@ -36,9 +37,5 @@ cmd="$@"
 set -e
 
 # Retrieve SSM secret from /mediasci/aicw/librechat/$stage/env.
-aws ssm get-parameter \
-  --name "/mediasci/aicw/librechat/$stage/env" \
-  --with-decryption \
-  --query Parameter.Value \
-  --output text
+get_ssm_parameter "/mediasci/aicw/librechat/$stage/env"
 

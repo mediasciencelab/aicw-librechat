@@ -15,3 +15,15 @@ get_stack_output() {
         --query "Stacks[0].Outputs[?OutputKey=='${output_key}'].OutputValue" \
         --output text
 }
+
+# Get SSM parameter value with decryption
+# Usage: get_ssm_parameter <parameter-name>
+# Example: get_ssm_parameter "/mediasci/aicw/librechat/dev/env"
+get_ssm_parameter() {
+    local parameter_name=$1
+    aws ssm get-parameter \
+        --name "$parameter_name" \
+        --with-decryption \
+        --query Parameter.Value \
+        --output text
+}
