@@ -2,8 +2,7 @@
 
 # This script lists EBS snapshots for a given LibreChat environment.
 
-this_dir=$(dirname "$0")
-project_root=$this_dir/..
+source "$(dirname "$0")/lib/start_script.sh"
 
 stage=`cat $project_root/.sst/stage 2> /dev/null`
 

@@ -2,8 +2,7 @@
 
 # This script is used to SSH to the libre-chat instance and run commands and such.
 
-this_dir=$(dirname "$0")
-project_root=$this_dir/..
+source "$(dirname "$0")/lib/start_script.sh"
 
 stage=`cat $project_root/.sst/stage 2> /dev/null`
 

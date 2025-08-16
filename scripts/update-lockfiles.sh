@@ -6,8 +6,7 @@
 
 set -e
 
-this_dir=$(dirname "$0")
-project_root=$this_dir/..
+source "$(dirname "$0")/lib/start_script.sh"
 
 echo "Updating package lock files..."
 echo "Project root: $project_root"

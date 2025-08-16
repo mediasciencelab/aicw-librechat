@@ -2,7 +2,6 @@
 
 # This script is used to SSH to the libre-chat instance and run commands and such.
 
-this_dir=$(dirname "$0")
-project_root=$this_dir/..
+source "$(dirname "$0")/lib/start_script.sh"
 
 $this_dir/ssh-instance.sh $@ docker exec -it LibreChat /bin/sh -c "'cd .. && npm run delete-user'"
