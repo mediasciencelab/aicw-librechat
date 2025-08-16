@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 source "$(dirname "$0")/lib/sst.sh"
+source "$(dirname "$0")/lib/aws.sh"
 
 stage=$(get_stage)
 
@@ -45,12 +46,7 @@ echo "Description: $description"
 set -e
 
 # Retrieve the EBS Volume ID from the Storage stack
-volume_id=$(
-  aws cloudformation describe-stacks \
-    --stack-name ${stage}-aiwc-librechat-Storage \
-    --query "Stacks[0].Outputs[?OutputKey=='ebsVolumeId'].OutputValue" \
-    --output text
-)
+volume_id=$(get_stack_output "$stage" "Storage" "ebsVolumeId")
 
 if [[ -z "$volume_id" ]] || [[ "$volume_id" == "None" ]]; then
   echo "Error: Could not find EBS Volume ID for stage '$stage'"
@@ -61,12 +57,7 @@ fi
 echo "EBS Volume ID: $volume_id"
 
 # Get the instance ID from the Instance stack
-instance_id=$(
-  aws cloudformation describe-stacks \
-    --stack-name ${stage}-aiwc-librechat-Instance \
-    --query "Stacks[0].Outputs[?OutputKey=='instanceId'].OutputValue" \
-    --output text
-)
+instance_id=$(get_stack_output "$stage" "Instance" "instanceId")
 
 if [[ -z "$instance_id" ]] || [[ "$instance_id" == "None" ]]; then
   echo "Warning: Could not find Instance ID for stage '$stage'. Taking snapshot with instance running."

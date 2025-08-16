@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 source "$(dirname "$0")/lib/sst.sh"
+source "$(dirname "$0")/lib/aws.sh"
 
 stage=$(get_stage)
 
@@ -35,12 +36,7 @@ fi
 set -e
 
 # Retrieve SSH key
-ssh_key_param=$(
-  aws cloudformation describe-stacks \
-    --stack-name ${stage}-aiwc-librechat-Static \
-    --query "Stacks[0].Outputs[?OutputKey=='keyPairPrivateKeyParameter'].OutputValue" \
-    --output text
-)
+ssh_key_param=$(get_stack_output "$stage" "Static" "keyPairPrivateKeyParameter")
 
 echo "SSH key param: $ssh_key_param"
 
@@ -53,12 +49,7 @@ ssh_key=$(aws ssm get-parameter \
   --output text)
 
 # Retrieve the IP address of the instance
-instance_ip=$(
-  aws cloudformation describe-stacks \
-    --stack-name ${stage}-aiwc-librechat-Static \
-    --query "Stacks[0].Outputs[?OutputKey=='libreChatIpAddress'].OutputValue" \
-    --output text
-)
+instance_ip=$(get_stack_output "$stage" "Static" "libreChatIpAddress")
 
 # Add the SSH key to the ssh-agent
 ssh-add - <<< "$ssh_key" > /dev/null

@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 source "$(dirname "$0")/lib/sst.sh"
+source "$(dirname "$0")/lib/aws.sh"
 
 stage=$(get_stage)
 
@@ -38,12 +39,7 @@ cmd="$@"
 set -e
 
 # Retrieve the IP address of the instance
-instance_ip=$(
-  aws cloudformation describe-stacks \
-    --stack-name ${stage}-aiwc-librechat-Static \
-    --query "Stacks[0].Outputs[?OutputKey=='libreChatIpAddress'].OutputValue" \
-    --output text
-)
+instance_ip=$(get_stack_output "$stage" "Static" "libreChatIpAddress")
 
 # SSH to instance
 
