@@ -4,4 +4,4 @@
 
 source "$(dirname "$0")/lib/start_script.sh"
 
-$this_dir/ssh-instance.sh $@ docker exec -it LibreChat /bin/sh -c "'cd .. && npm run list-users'"
+$this_dir/librechat-exec.sh $@ list-users
