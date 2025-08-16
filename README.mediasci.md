@@ -31,6 +31,16 @@ image to your locally running docker daemon.
 docker compose -f docker-compose.mediasci.yml build
 ```
 
+**Package Management:** The project uses pnpm for development but the Dockerfile uses npm. If you
+encounter dependency issues during Docker builds, ensure both lock files are synchronized:
+
+```shell
+./scripts/update-lockfiles.sh
+```
+
+This script generates both `pnpm-lock.yaml` and `package-lock.json` files to maintain
+compatibility between the development environment (pnpm) and Docker builds (npm).
+
 ### EC2 AMI
 
 Once the docker image is built, the AMI can be built using the `packer` command. The
@@ -241,6 +251,7 @@ stage in the `.sst/stage` file.
 * `scripts/user-stats.sh` - Get the stats for all Libre-Chat users.
 * `scripts/create-db-snapshot.sh` - Create an EBS snapshot of the environment's storage volume.
 * `scripts/list-db-snapshots.sh` - List EBS snapshots for an environment.
+* `scripts/update-lockfiles.sh` - Generate both npm and pnpm lock files for package compatibility.
 
 **Example:**
 
