@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # This script is used to promote the latest AMI from one environment to another.
 
 source_env=$1
