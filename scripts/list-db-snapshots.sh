@@ -39,6 +39,6 @@ echo "Listing EBS snapshots for stage '$stage'..."
 # List snapshots for specific stage (only those created by our script, excludes AMI snapshots)
 aws ec2 describe-snapshots \
   --owner-ids self \
-  --filters "Name=tag:mediasci:project,Values=aicw" "Name=tag:mediasci:env:$stage,Values=true" "Name=tag:mediasci:provisioner,Values=script" \
+  --filters "Name=tag:mediasci:project,Values=aicw" "Name=tag:mediasci:env,Values=$stage" "Name=tag:mediasci:provisioner,Values=script" \
   --query 'Snapshots[*].[SnapshotId,StartTime,Description,Tags[?Key==`Name`].Value|[0]]' \
   --output table

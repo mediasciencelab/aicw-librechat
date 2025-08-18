@@ -98,7 +98,7 @@ snapshot_id=$(
   aws ec2 create-snapshot \
     --volume-id "$volume_id" \
     --description "$description" \
-    --tag-specifications "ResourceType=snapshot,Tags=[{Key=mediasci:project,Value=aicw},{Key=mediasci:env:$stage,Value=true},{Key=mediasci:provisioner,Value=script},{Key=Name,Value=aiwc-librechat-$stage-snapshot-$(date '+%Y%m%d-%H%M%S')}]" \
+    --tag-specifications "ResourceType=snapshot,Tags=[{Key=mediasci:project,Value=aicw},{Key=mediasci:env,Value=$stage},{Key=mediasci:provisioner,Value=script},{Key=Name,Value=aiwc-librechat-$stage-snapshot-$(date '+%Y%m%d-%H%M%S')}]" \
     --query "SnapshotId" \
     --output text
 )
