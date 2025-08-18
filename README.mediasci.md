@@ -193,12 +193,12 @@ ANTHROPIC_API_KEY=<Anthropic API key>
 **Step 3: Upload secrets**
 
 ```shell
-./scripts/upload-secrets.sh -s <env> <path-to-secrets-file>
+./scripts/set-secrets.sh -s <env> <path-to-secrets-file>
 ```
 
 **Example:**
 ```shell
-./scripts/upload-secrets.sh -s staging ./secrets/trajector.env
+./scripts/set-secrets.sh -s staging ./secrets/trajector.env
 ```
 
 **How secrets are used:** The LibreChat application automatically retrieves these encrypted
