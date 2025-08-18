@@ -7,23 +7,37 @@ source "$(dirname "$0")/lib/sst.sh"
 source "$(dirname "$0")/lib/aws.sh"
 
 stage=$(get_stage)
+stop_instance=true
 
 # Parse some options
 
-while getopts ":s:d:" opt; do
-  case $opt in
-    s)
-      stage=$OPTARG
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -s)
+      stage="$2"
+      shift 2
       ;;
-    d)
-      description=$OPTARG
+    -d)
+      description="$2"
+      shift 2
       ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
+    --no-stop)
+      stop_instance=false
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [-s stage] [-d description] [--no-stop]"
+      echo "  -s stage       Specify the environment stage"
+      echo "  -d description Custom snapshot description"
+      echo "  --no-stop      Skip stopping/starting the instance (may result in inconsistent snapshot)"
+      exit 0
+      ;;
+    -*)
+      echo "Invalid option: $1" >&2
       exit 1
       ;;
-    :)
-      echo "Option -$OPTARG requires an argument." >&2
+    *)
+      echo "Unexpected argument: $1" >&2
       exit 1
       ;;
   esac
@@ -59,9 +73,13 @@ echo "EBS Volume ID: $volume_id"
 # Get the instance ID from the Instance stack
 instance_id=$(get_stack_output "$stage" "Instance" "instanceId")
 
-if [[ -z "$instance_id" ]] || [[ "$instance_id" == "None" ]]; then
+if [[ "$stop_instance" == "false" ]]; then
+  echo "Skipping instance stop as requested with --no-stop option."
+  echo "Warning: This may result in inconsistent data if the database is being written to during snapshot."
+elif [[ -z "$instance_id" ]] || [[ "$instance_id" == "None" ]]; then
   echo "Warning: Could not find Instance ID for stage '$stage'. Taking snapshot with instance running."
   echo "This may result in inconsistent data if the database is being written to during snapshot."
+  stop_instance=false
 else
   echo "Instance ID: $instance_id"
   
@@ -91,7 +109,7 @@ echo "Volume ID: $volume_id"
 echo "Stage: $stage"
 
 # Restart the instance if we stopped it
-if [[ -n "$instance_id" ]] && [[ "$instance_id" != "None" ]]; then
+if [[ "$stop_instance" == "true" ]] && [[ -n "$instance_id" ]] && [[ "$instance_id" != "None" ]]; then
   echo ""
   echo "Restarting EC2 instance..."
   aws ec2 start-instances --instance-ids "$instance_id"

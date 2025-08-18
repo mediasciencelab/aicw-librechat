@@ -300,6 +300,7 @@ You can create EBS snapshots of your environment's storage volume using the back
 **Options:**
 - `-s <stage>` - Specify the environment stage (uses file `.sst/stage` if not already written)
 - `-d <description>` - Custom snapshot description (optional)
+- `--no-stop` - Skip stopping/starting the instance (may result in inconsistent snapshot)
 
 **Examples:**
 ```shell
