@@ -31,6 +31,19 @@ image to your locally running docker daemon.
 docker compose -f docker-compose.mediasci.yml build
 ```
 
+**Local Development:** To run LibreChat locally for development and testing, use the provided scripts:
+
+```shell
+# Start LibreChat locally using .env
+./scripts/start-local-librechat.sh
+
+# Start with a custom environment file
+./scripts/start-local-librechat.sh -e .env.local
+
+# Stop the local environment
+./scripts/stop-local-librechat.sh
+```
+
 **Package Management:** The project uses pnpm for development but the Dockerfile uses npm. If you
 encounter dependency issues during Docker builds, ensure both lock files are synchronized:
 
@@ -286,6 +299,8 @@ environment's EC2 instance.
 ### Development Tools
 * `scripts/update-lockfiles.sh` - Generate both npm and pnpm lock files for package compatibility.
 * `scripts/promote-ami.sh` - Promote an AMI from one environment to another.
+* `scripts/start-local-librechat.sh` - Start LibreChat locally using docker-compose.mediasci.yml.
+* `scripts/stop-local-librechat.sh` - Stop the local LibreChat development environment.
 
 **Example:**
 
