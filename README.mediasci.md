@@ -201,8 +201,14 @@ ANTHROPIC_API_KEY=<Anthropic API key>
 ./scripts/set-secrets.sh -s staging ./secrets/trajector.env
 ```
 
-**How secrets are used:** The LibreChat application automatically retrieves these encrypted
-secrets from Parameter Store at startup using the KMS key to decrypt them.
+**How secrets are used:** On first boot, the instance runs a `firstrun.sh` script that
+downloads the encrypted secrets from Parameter Store using the KMS key to decrypt them, then
+writes them to a `.env` file. The LibreChat docker service then picks up these environment
+variables from the `.env` file.
+
+**Important:** The `firstrun.sh` script only runs on the first boot of a new instance. If
+secrets need to be changed, the instance must be recreated as the script will not run again on
+subsequent boots.
 
 # User management
 
