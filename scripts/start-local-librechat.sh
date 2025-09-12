@@ -10,14 +10,29 @@ set -e
 
 source "$(dirname "$0")/lib/start_script.sh"
 
+env_file=.env.docker.local
+
 # Parse command line arguments
-env_file=".env"
+source_env_file=.env
+env_file_specified=false
 while getopts "e:" opt; do
     case $opt in
-        e) env_file="$OPTARG" ;;
+        e) source_env_file="$OPTARG"; env_file_specified=true ;;
         \?) echo "Invalid option -$OPTARG" >&2; exit 1 ;;
     esac
 done
+
+# If -e was specified but .env.docker.local doesn't exist, fall back to .env
+if [ "$env_file_specified" = true ] || [ ! -f ".env.docker.local" ]; then
+  # Check if specified env file exists
+  if [ ! -f "$source_env_file" ]; then
+      echo "❌ $source_env_file not found in project root"
+      echo "   You need to create one with required environment variables"
+      exit 1
+  fi
+
+  cp $source_env_file $env_file
+fi
 
 echo "Starting local LibreChat development environment..."
 echo "Project root: $project_root"
@@ -28,13 +43,6 @@ cd "$project_root"
 # Check if docker-compose.mediasci.yml exists
 if [ ! -f "docker-compose.mediasci.yml" ]; then
     echo "❌ docker-compose.mediasci.yml not found in project root"
-    exit 1
-fi
-
-# Check if specified env file exists
-if [ ! -f "$env_file" ]; then
-    echo "❌ $env_file not found in project root"
-    echo "   You need to create one with required environment variables"
     exit 1
 fi
 

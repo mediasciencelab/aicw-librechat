@@ -18,9 +18,14 @@ if [ ! -f "docker-compose.mediasci.yml" ]; then
     exit 1
 fi
 
+env_file=".env.docker.local"
+
 # Stop the services
 echo "Stopping LibreChat services..."
-docker compose -f docker-compose.mediasci.yml down
+if ! ENV_FILE="$env_file" docker compose -f docker-compose.mediasci.yml down; then
+    echo "❌ FAILED TO STOP LIBRECHAT SERVICES!"
+    exit 1
+fi
 
 echo ""
 echo "✅ LibreChat services stopped!"
