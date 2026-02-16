@@ -1,7 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import type { AssistantsEndpoint, AgentProvider } from 'src/schemas';
+import type { Agents, GraphEdge } from './agents';
 import type { ContentTypes } from './runs';
-import type { Agents } from './agents';
 import type { TFile } from './files';
 import { ArtifactModes } from 'src/artifacts';
 
@@ -23,6 +23,7 @@ export enum Tools {
   retrieval = 'retrieval',
   function = 'function',
   memory = 'memory',
+  ui_resources = 'ui_resources',
 }
 
 export enum EToolResources {
@@ -30,6 +31,7 @@ export enum EToolResources {
   execute_code = 'execute_code',
   file_search = 'file_search',
   image_edit = 'image_edit',
+  context = 'context',
   ocr = 'ocr',
 }
 
@@ -164,6 +166,7 @@ export type AgentModelParameters = {
   top_p: AgentParameterValue;
   frequency_penalty: AgentParameterValue;
   presence_penalty: AgentParameterValue;
+  useResponsesApi?: boolean;
 };
 
 export interface AgentBaseResource {
@@ -181,6 +184,8 @@ export interface AgentToolResources {
   [EToolResources.image_edit]?: AgentBaseResource;
   [EToolResources.execute_code]?: ExecuteCodeResource;
   [EToolResources.file_search]?: AgentFileResource;
+  [EToolResources.context]?: AgentBaseResource;
+  /** @deprecated Use context instead */
   [EToolResources.ocr]?: AgentBaseResource;
 }
 /**
@@ -196,8 +201,13 @@ export interface AgentFileResource extends AgentBaseResource {
    */
   vector_store_ids?: Array<string>;
 }
+export type SupportContact = {
+  name?: string;
+  email?: string;
+};
 
 export type Agent = {
+  _id?: string;
   id: string;
   name: string | null;
   author?: string | null;
@@ -207,7 +217,7 @@ export type Agent = {
   description: string | null;
   created_at: number;
   avatar: AgentAvatar | null;
-  instructions: string | null;
+  instructions?: string | null;
   additional_instructions?: string | null;
   tools?: string[];
   projectIds?: string[];
@@ -217,14 +227,20 @@ export type Agent = {
   model: string | null;
   model_parameters: AgentModelParameters;
   conversation_starters?: string[];
+  /** @deprecated Use ACL permissions instead */
   isCollaborative?: boolean;
   tool_resources?: AgentToolResources;
+  /** @deprecated Use edges instead */
   agent_ids?: string[];
+  edges?: GraphEdge[];
   end_after_tools?: boolean;
   hide_sequential_outputs?: boolean;
   artifacts?: ArtifactModes;
   recursion_limit?: number;
+  isPublic?: boolean;
   version?: number;
+  category?: string;
+  support_contact?: SupportContact;
 };
 
 export type TAgentsMap = Record<string, Agent | undefined>;
@@ -241,7 +257,14 @@ export type AgentCreateParams = {
   model_parameters: AgentModelParameters;
 } & Pick<
   Agent,
-  'agent_ids' | 'end_after_tools' | 'hide_sequential_outputs' | 'artifacts' | 'recursion_limit'
+  | 'agent_ids'
+  | 'edges'
+  | 'end_after_tools'
+  | 'hide_sequential_outputs'
+  | 'artifacts'
+  | 'recursion_limit'
+  | 'category'
+  | 'support_contact'
 >;
 
 export type AgentUpdateParams = {
@@ -260,15 +283,23 @@ export type AgentUpdateParams = {
   isCollaborative?: boolean;
 } & Pick<
   Agent,
-  'agent_ids' | 'end_after_tools' | 'hide_sequential_outputs' | 'artifacts' | 'recursion_limit'
+  | 'agent_ids'
+  | 'edges'
+  | 'end_after_tools'
+  | 'hide_sequential_outputs'
+  | 'artifacts'
+  | 'recursion_limit'
+  | 'category'
+  | 'support_contact'
 >;
 
 export type AgentListParams = {
   limit?: number;
-  before?: string | null;
-  after?: string | null;
-  order?: 'asc' | 'desc';
-  provider?: AgentProvider;
+  requiredPermission: number;
+  category?: string;
+  search?: string;
+  cursor?: string;
+  promoted?: 0 | 1;
 };
 
 export type AgentListResponse = {
@@ -277,6 +308,7 @@ export type AgentListResponse = {
   first_id: string;
   last_id: string;
   has_more: boolean;
+  after?: string;
 };
 
 export type AgentFile = {
@@ -435,7 +467,16 @@ export type PartMetadata = {
   action?: boolean;
   auth?: string;
   expires_at?: number;
+  /** Index indicating parallel sibling content (same stepIndex in multi-agent runs) */
+  siblingIndex?: number;
+  /** Agent ID for parallel agent rendering - identifies which agent produced this content */
+  agentId?: string;
+  /** Group ID for parallel content - parts with same groupId are displayed in columns */
+  groupId?: number;
 };
+
+/** Metadata for parallel content rendering - subset of PartMetadata */
+export type ContentMetadata = Pick<PartMetadata, 'agentId' | 'groupId'>;
 
 export type ContentPart = (
   | CodeToolCall
@@ -448,11 +489,21 @@ export type ContentPart = (
 ) &
   PartMetadata;
 
+export type TextData = (Text & PartMetadata) | undefined;
+
 export type TMessageContentParts =
-  | { type: ContentTypes.ERROR; text?: string | (Text & PartMetadata); error?: string }
-  | { type: ContentTypes.THINK; think: string | (Text & PartMetadata) }
-  | { type: ContentTypes.TEXT; text: string | (Text & PartMetadata); tool_call_ids?: string[] }
-  | {
+  | ({
+      type: ContentTypes.ERROR;
+      text?: string | TextData;
+      error?: string;
+    } & ContentMetadata)
+  | ({ type: ContentTypes.THINK; think?: string | TextData } & ContentMetadata)
+  | ({
+      type: ContentTypes.TEXT;
+      text?: string | TextData;
+      tool_call_ids?: string[];
+    } & ContentMetadata)
+  | ({
       type: ContentTypes.TOOL_CALL;
       tool_call: (
         | CodeToolCall
@@ -462,10 +513,12 @@ export type TMessageContentParts =
         | Agents.AgentToolCall
       ) &
         PartMetadata;
-    }
-  | { type: ContentTypes.IMAGE_FILE; image_file: ImageFile & PartMetadata }
-  | Agents.AgentUpdate
-  | Agents.MessageContentImageUrl;
+    } & ContentMetadata)
+  | ({ type: ContentTypes.IMAGE_FILE; image_file: ImageFile & PartMetadata } & ContentMetadata)
+  | (Agents.AgentUpdate & ContentMetadata)
+  | (Agents.MessageContentImageUrl & ContentMetadata)
+  | (Agents.MessageContentVideoUrl & ContentMetadata)
+  | (Agents.MessageContentInputAudio & ContentMetadata);
 
 export type StreamContentData = TMessageContentParts & {
   /** The index of the current content part */

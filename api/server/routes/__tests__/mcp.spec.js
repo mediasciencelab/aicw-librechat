@@ -2,15 +2,47 @@ const express = require('express');
 const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const { getBasePath } = require('@librechat/api');
 
-jest.mock('@librechat/api', () => ({
-  MCPOAuthHandler: {
-    initiateOAuthFlow: jest.fn(),
-    getFlowState: jest.fn(),
-    completeOAuthFlow: jest.fn(),
-    generateFlowId: jest.fn(),
-  },
-}));
+const mockRegistryInstance = {
+  getServerConfig: jest.fn(),
+  getOAuthServers: jest.fn(),
+  getAllServerConfigs: jest.fn(),
+  addServer: jest.fn(),
+  updateServer: jest.fn(),
+  removeServer: jest.fn(),
+};
+
+jest.mock('@librechat/api', () => {
+  const actual = jest.requireActual('@librechat/api');
+  return {
+    ...actual,
+    MCPOAuthHandler: {
+      initiateOAuthFlow: jest.fn(),
+      getFlowState: jest.fn(),
+      completeOAuthFlow: jest.fn(),
+      generateFlowId: jest.fn(),
+    },
+    MCPTokenStorage: {
+      storeTokens: jest.fn(),
+      getClientInfoAndMetadata: jest.fn(),
+      getTokens: jest.fn(),
+      deleteUserTokens: jest.fn(),
+    },
+    getUserMCPAuthMap: jest.fn(),
+    generateCheckAccess: jest.fn(() => (req, res, next) => next()),
+    MCPServersRegistry: {
+      getInstance: () => mockRegistryInstance,
+    },
+    // Error handling utilities (from @librechat/api mcp/errors)
+    isMCPDomainNotAllowedError: (error) => error?.code === 'MCP_DOMAIN_NOT_ALLOWED',
+    isMCPInspectionFailedError: (error) => error?.code === 'MCP_INSPECTION_FAILED',
+    MCPErrorCodes: {
+      DOMAIN_NOT_ALLOWED: 'MCP_DOMAIN_NOT_ALLOWED',
+      INSPECTION_FAILED: 'MCP_INSPECTION_FAILED',
+    },
+  };
+});
 
 jest.mock('@librechat/data-schemas', () => ({
   logger: {
@@ -29,6 +61,9 @@ jest.mock('@librechat/data-schemas', () => ({
       findById: jest.fn(),
     },
   })),
+  createMethods: jest.fn(() => ({
+    findUser: jest.fn(),
+  })),
 }));
 
 jest.mock('~/models', () => ({
@@ -36,12 +71,19 @@ jest.mock('~/models', () => ({
   updateToken: jest.fn(),
   createToken: jest.fn(),
   deleteTokens: jest.fn(),
+  findPluginAuthsByKeys: jest.fn(),
+  getRoleByName: jest.fn(),
 }));
 
 jest.mock('~/server/services/Config', () => ({
   setCachedTools: jest.fn(),
   getCachedTools: jest.fn(),
+  getMCPServerTools: jest.fn(),
   loadCustomConfig: jest.fn(),
+}));
+
+jest.mock('~/server/services/Config/mcp', () => ({
+  updateMCPServerTools: jest.fn(),
 }));
 
 jest.mock('~/server/services/MCP', () => ({
@@ -56,6 +98,8 @@ jest.mock('~/server/services/PluginService', () => ({
 jest.mock('~/config', () => ({
   getMCPManager: jest.fn(),
   getFlowStateManager: jest.fn(),
+  getOAuthReconnectionManager: jest.fn(),
+  getMCPServersRegistry: jest.fn(() => mockRegistryInstance),
 }));
 
 jest.mock('~/cache', () => ({
@@ -64,6 +108,11 @@ jest.mock('~/cache', () => ({
 
 jest.mock('~/server/middleware', () => ({
   requireJwtAuth: (req, res, next) => next(),
+  canAccessMCPServerResource: () => (req, res, next) => next(),
+}));
+
+jest.mock('~/server/services/Tools/mcp', () => ({
+  reinitMCPServer: jest.fn(),
 }));
 
 describe('MCP Routes', () => {
@@ -115,6 +164,7 @@ describe('MCP Routes', () => {
 
       getLogStores.mockReturnValue({});
       require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
 
       MCPOAuthHandler.initiateOAuthFlow.mockResolvedValue({
         authorizationUrl: 'https://oauth.example.com/auth',
@@ -132,6 +182,7 @@ describe('MCP Routes', () => {
         'test-server',
         'https://test-server.com',
         'test-user-id',
+        {},
         { clientId: 'test-client-id' },
       );
     });
@@ -223,7 +274,7 @@ describe('MCP Routes', () => {
   });
 
   describe('GET /:serverName/oauth/callback', () => {
-    const { MCPOAuthHandler } = require('@librechat/api');
+    const { MCPOAuthHandler, MCPTokenStorage } = require('@librechat/api');
     const { getLogStores } = require('~/cache');
 
     it('should redirect to error page when OAuth error is received', async () => {
@@ -231,27 +282,30 @@ describe('MCP Routes', () => {
         error: 'access_denied',
         state: 'test-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/error?error=access_denied');
+      expect(response.headers.location).toBe(`${basePath}/oauth/error?error=access_denied`);
     });
 
     it('should redirect to error page when code is missing', async () => {
       const response = await request(app).get('/api/mcp/test-server/oauth/callback').query({
         state: 'test-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/error?error=missing_code');
+      expect(response.headers.location).toBe(`${basePath}/oauth/error?error=missing_code`);
     });
 
     it('should redirect to error page when state is missing', async () => {
       const response = await request(app).get('/api/mcp/test-server/oauth/callback').query({
         code: 'test-auth-code',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/error?error=missing_state');
+      expect(response.headers.location).toBe(`${basePath}/oauth/error?error=missing_state`);
     });
 
     it('should redirect to error page when flow state is not found', async () => {
@@ -261,14 +315,18 @@ describe('MCP Routes', () => {
         code: 'test-auth-code',
         state: 'invalid-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/error?error=invalid_state');
+      expect(response.headers.location).toBe(`${basePath}/oauth/error?error=invalid_state`);
     });
 
     it('should handle OAuth callback successfully', async () => {
+      // mockRegistryInstance is defined at the top of the file
       const mockFlowManager = {
+        getFlowState: jest.fn().mockResolvedValue({ status: 'PENDING' }),
         completeFlow: jest.fn().mockResolvedValue(),
+        deleteFlow: jest.fn().mockResolvedValue(true),
       };
       const mockFlowState = {
         serverName: 'test-server',
@@ -284,6 +342,8 @@ describe('MCP Routes', () => {
 
       MCPOAuthHandler.getFlowState.mockResolvedValue(mockFlowState);
       MCPOAuthHandler.completeOAuthFlow.mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockResolvedValue();
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
       getLogStores.mockReturnValue({});
       require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
 
@@ -313,19 +373,34 @@ describe('MCP Routes', () => {
         code: 'test-auth-code',
         state: 'test-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/success?serverName=test-server');
+      expect(response.headers.location).toBe(`${basePath}/oauth/success?serverName=test-server`);
       expect(MCPOAuthHandler.completeOAuthFlow).toHaveBeenCalledWith(
         'test-flow-id',
         'test-auth-code',
         mockFlowManager,
+        {},
       );
+      expect(MCPTokenStorage.storeTokens).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'test-user-id',
+          serverName: 'test-server',
+          tokens: mockTokens,
+          clientInfo: mockFlowState.clientInfo,
+          metadata: mockFlowState.metadata,
+        }),
+      );
+      const storeInvocation = MCPTokenStorage.storeTokens.mock.invocationCallOrder[0];
+      const connectInvocation = mockMcpManager.getUserConnection.mock.invocationCallOrder[0];
+      expect(storeInvocation).toBeLessThan(connectInvocation);
       expect(mockFlowManager.completeFlow).toHaveBeenCalledWith(
         'tool-flow-123',
         'mcp_oauth',
         mockTokens,
       );
+      expect(mockFlowManager.deleteFlow).toHaveBeenCalledWith('test-flow-id', 'mcp_get_tokens');
     });
 
     it('should redirect to error page when callback processing fails', async () => {
@@ -335,14 +410,18 @@ describe('MCP Routes', () => {
         code: 'test-auth-code',
         state: 'test-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/error?error=callback_failed');
+      expect(response.headers.location).toBe(`${basePath}/oauth/error?error=callback_failed`);
     });
 
     it('should handle system-level OAuth completion', async () => {
+      // mockRegistryInstance is defined at the top of the file
       const mockFlowManager = {
+        getFlowState: jest.fn().mockResolvedValue({ status: 'PENDING' }),
         completeFlow: jest.fn().mockResolvedValue(),
+        deleteFlow: jest.fn().mockResolvedValue(true),
       };
       const mockFlowState = {
         serverName: 'test-server',
@@ -358,6 +437,8 @@ describe('MCP Routes', () => {
 
       MCPOAuthHandler.getFlowState.mockResolvedValue(mockFlowState);
       MCPOAuthHandler.completeOAuthFlow.mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockResolvedValue();
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
       getLogStores.mockReturnValue({});
       require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
 
@@ -365,14 +446,19 @@ describe('MCP Routes', () => {
         code: 'test-auth-code',
         state: 'test-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/success?serverName=test-server');
+      expect(response.headers.location).toBe(`${basePath}/oauth/success?serverName=test-server`);
+      expect(mockFlowManager.deleteFlow).toHaveBeenCalledWith('test-flow-id', 'mcp_get_tokens');
     });
 
     it('should handle reconnection failure after OAuth', async () => {
+      // mockRegistryInstance is defined at the top of the file
       const mockFlowManager = {
+        getFlowState: jest.fn().mockResolvedValue({ status: 'PENDING' }),
         completeFlow: jest.fn().mockResolvedValue(),
+        deleteFlow: jest.fn().mockResolvedValue(true),
       };
       const mockFlowState = {
         serverName: 'test-server',
@@ -388,6 +474,8 @@ describe('MCP Routes', () => {
 
       MCPOAuthHandler.getFlowState.mockResolvedValue(mockFlowState);
       MCPOAuthHandler.completeOAuthFlow.mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockResolvedValue();
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
       getLogStores.mockReturnValue({});
       require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
 
@@ -404,9 +492,157 @@ describe('MCP Routes', () => {
         code: 'test-auth-code',
         state: 'test-flow-id',
       });
+      const basePath = getBasePath();
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/oauth/success?serverName=test-server');
+      expect(response.headers.location).toBe(`${basePath}/oauth/success?serverName=test-server`);
+      expect(MCPTokenStorage.storeTokens).toHaveBeenCalled();
+      expect(mockFlowManager.deleteFlow).toHaveBeenCalledWith('test-flow-id', 'mcp_get_tokens');
+    });
+
+    it('should redirect to error page if token storage fails', async () => {
+      // mockRegistryInstance is defined at the top of the file
+      const mockFlowManager = {
+        completeFlow: jest.fn().mockResolvedValue(),
+        deleteFlow: jest.fn().mockResolvedValue(true),
+      };
+      const mockFlowState = {
+        serverName: 'test-server',
+        userId: 'test-user-id',
+        metadata: { toolFlowId: 'tool-flow-123' },
+        clientInfo: {},
+        codeVerifier: 'test-verifier',
+      };
+      const mockTokens = {
+        access_token: 'test-access-token',
+        refresh_token: 'test-refresh-token',
+      };
+
+      MCPOAuthHandler.getFlowState.mockResolvedValue(mockFlowState);
+      MCPOAuthHandler.completeOAuthFlow.mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockRejectedValue(new Error('store failed'));
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
+      getLogStores.mockReturnValue({});
+      require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
+
+      const mockMcpManager = {
+        getUserConnection: jest.fn(),
+      };
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
+
+      const response = await request(app).get('/api/mcp/test-server/oauth/callback').query({
+        code: 'test-auth-code',
+        state: 'test-flow-id',
+      });
+      const basePath = getBasePath();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(`${basePath}/oauth/error?error=callback_failed`);
+      expect(mockMcpManager.getUserConnection).not.toHaveBeenCalled();
+    });
+
+    it('should use original flow state credentials when storing tokens', async () => {
+      // mockRegistryInstance is defined at the top of the file
+      const mockFlowManager = {
+        getFlowState: jest.fn(),
+        completeFlow: jest.fn().mockResolvedValue(),
+        deleteFlow: jest.fn().mockResolvedValue(true),
+      };
+      const clientInfo = {
+        client_id: 'client123',
+        client_secret: 'client_secret',
+      };
+      const flowState = {
+        serverName: 'test-server',
+        userId: 'test-user-id',
+        metadata: { toolFlowId: 'tool-flow-123', serverUrl: 'http://example.com' },
+        clientInfo: clientInfo,
+        codeVerifier: 'test-verifier',
+        status: 'PENDING',
+      };
+      const mockTokens = {
+        access_token: 'test-access-token',
+        refresh_token: 'test-refresh-token',
+      };
+
+      // First call checks idempotency (status PENDING = not completed)
+      // Second call retrieves flow state for processing
+      mockFlowManager.getFlowState
+        .mockResolvedValueOnce({ status: 'PENDING' })
+        .mockResolvedValueOnce(flowState);
+
+      MCPOAuthHandler.getFlowState.mockResolvedValue(flowState);
+      MCPOAuthHandler.completeOAuthFlow.mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockResolvedValue();
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
+      getLogStores.mockReturnValue({});
+      require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
+
+      const mockUserConnection = {
+        fetchTools: jest.fn().mockResolvedValue([]),
+      };
+      const mockMcpManager = {
+        getUserConnection: jest.fn().mockResolvedValue(mockUserConnection),
+      };
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
+      require('~/config').getOAuthReconnectionManager = jest.fn().mockReturnValue({
+        clearReconnection: jest.fn(),
+      });
+
+      const response = await request(app).get('/api/mcp/test-server/oauth/callback').query({
+        code: 'test-auth-code',
+        state: 'test-flow-id',
+      });
+      const basePath = getBasePath();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(`${basePath}/oauth/success?serverName=test-server`);
+
+      // Verify storeTokens was called with ORIGINAL flow state credentials
+      expect(MCPTokenStorage.storeTokens).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'test-user-id',
+          serverName: 'test-server',
+          tokens: mockTokens,
+          clientInfo: clientInfo, // Uses original flow state, not any "updated" credentials
+          metadata: flowState.metadata,
+        }),
+      );
+    });
+
+    it('should prevent duplicate token exchange with idempotency check', async () => {
+      const mockFlowManager = {
+        getFlowState: jest.fn(),
+      };
+
+      // Flow is already completed
+      mockFlowManager.getFlowState.mockResolvedValue({
+        status: 'COMPLETED',
+        serverName: 'test-server',
+        userId: 'test-user-id',
+      });
+
+      MCPOAuthHandler.getFlowState.mockResolvedValue({
+        status: 'COMPLETED',
+        serverName: 'test-server',
+        userId: 'test-user-id',
+      });
+
+      getLogStores.mockReturnValue({});
+      require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
+
+      const response = await request(app).get('/api/mcp/test-server/oauth/callback').query({
+        code: 'test-auth-code',
+        state: 'test-flow-id',
+      });
+      const basePath = getBasePath();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(`${basePath}/oauth/success?serverName=test-server`);
+
+      // Verify completeOAuthFlow was NOT called (prevented duplicate)
+      expect(MCPOAuthHandler.completeOAuthFlow).not.toHaveBeenCalled();
+      expect(MCPTokenStorage.storeTokens).not.toHaveBeenCalled();
     });
   });
 
@@ -494,12 +730,9 @@ describe('MCP Routes', () => {
     });
 
     it('should return 500 when token retrieval throws an unexpected error', async () => {
-      const mockFlowManager = {
-        getFlowState: jest.fn().mockRejectedValue(new Error('Database connection failed')),
-      };
-
-      getLogStores.mockReturnValue({});
-      require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
+      getLogStores.mockImplementation(() => {
+        throw new Error('Database connection failed');
+      });
 
       const response = await request(app).get('/api/mcp/oauth/tokens/test-user-id:error-flow');
 
@@ -563,8 +796,8 @@ describe('MCP Routes', () => {
   });
 
   describe('POST /oauth/cancel/:serverName', () => {
-    const { getLogStores } = require('~/cache');
     const { MCPOAuthHandler } = require('@librechat/api');
+    const { getLogStores } = require('~/cache');
 
     it('should cancel OAuth flow successfully', async () => {
       const mockFlowManager = {
@@ -644,15 +877,17 @@ describe('MCP Routes', () => {
   });
 
   describe('POST /:serverName/reinitialize', () => {
-    const { loadCustomConfig } = require('~/server/services/Config');
-    const { getUserPluginAuthValue } = require('~/server/services/PluginService');
+    // mockRegistryInstance is defined at the top of the file
 
     it('should return 404 when server is not found in configuration', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'other-server': {},
-        },
-      });
+      const mockMcpManager = {
+        disconnectUserConnection: jest.fn().mockResolvedValue(),
+      };
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue(null);
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
+      require('~/config').getFlowStateManager.mockReturnValue({});
+      require('~/cache').getLogStores.mockReturnValue({});
 
       const response = await request(app).post('/api/mcp/non-existent-server/reinitialize');
 
@@ -663,16 +898,8 @@ describe('MCP Routes', () => {
     });
 
     it('should handle OAuth requirement during reinitialize', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'oauth-server': {
-            customUserVars: {},
-          },
-        },
-      });
-
       const mockMcpManager = {
-        disconnectServer: jest.fn().mockResolvedValue(),
+        disconnectUserConnection: jest.fn().mockResolvedValue(),
         mcpConfigs: {},
         getUserConnection: jest.fn().mockImplementation(async ({ oauthStart }) => {
           if (oauthStart) {
@@ -682,15 +909,25 @@ describe('MCP Routes', () => {
         }),
       };
 
+      mockRegistryInstance.getServerConfig.mockResolvedValue({
+        customUserVars: {},
+      });
       require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
       require('~/config').getFlowStateManager.mockReturnValue({});
       require('~/cache').getLogStores.mockReturnValue({});
+      require('~/server/services/Tools/mcp').reinitMCPServer.mockResolvedValue({
+        success: true,
+        message: "MCP server 'oauth-server' ready for OAuth authentication",
+        serverName: 'oauth-server',
+        oauthRequired: true,
+        oauthUrl: 'https://oauth.example.com/auth',
+      });
 
       const response = await request(app).post('/api/mcp/oauth-server/reinitialize');
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
-        success: 'https://oauth.example.com/auth',
+        success: true,
         message: "MCP server 'oauth-server' ready for OAuth authentication",
         serverName: 'oauth-server',
         oauthRequired: true,
@@ -699,21 +936,17 @@ describe('MCP Routes', () => {
     });
 
     it('should return 500 when reinitialize fails with non-OAuth error', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'error-server': {},
-        },
-      });
-
       const mockMcpManager = {
-        disconnectServer: jest.fn().mockResolvedValue(),
+        disconnectUserConnection: jest.fn().mockResolvedValue(),
         mcpConfigs: {},
         getUserConnection: jest.fn().mockRejectedValue(new Error('Connection failed')),
       };
 
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
       require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
       require('~/config').getFlowStateManager.mockReturnValue({});
       require('~/cache').getLogStores.mockReturnValue({});
+      require('~/server/services/Tools/mcp').reinitMCPServer.mockResolvedValue(null);
 
       const response = await request(app).post('/api/mcp/error-server/reinitialize');
 
@@ -724,7 +957,14 @@ describe('MCP Routes', () => {
     });
 
     it('should return 500 when unexpected error occurs', async () => {
-      loadCustomConfig.mockRejectedValue(new Error('Config loading failed'));
+      const mockMcpManager = {
+        disconnectUserConnection: jest.fn(),
+      };
+
+      mockRegistryInstance.getServerConfig.mockImplementation(() => {
+        throw new Error('Config loading failed');
+      });
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
 
       const response = await request(app).post('/api/mcp/test-server/reinitialize');
 
@@ -747,75 +987,107 @@ describe('MCP Routes', () => {
       expect(response.body).toEqual({ error: 'User not authenticated' });
     });
 
-    it('should handle errors when fetching custom user variables', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': {
-            customUserVars: {
-              API_KEY: 'test-key-var',
-              SECRET_TOKEN: 'test-secret-var',
-            },
-          },
-        },
+    it('should successfully reinitialize server and cache tools', async () => {
+      const mockUserConnection = {
+        fetchTools: jest.fn().mockResolvedValue([
+          { name: 'tool1', description: 'Test tool 1', inputSchema: { type: 'object' } },
+          { name: 'tool2', description: 'Test tool 2', inputSchema: { type: 'object' } },
+        ]),
+      };
+
+      const mockMcpManager = {
+        disconnectUserConnection: jest.fn().mockResolvedValue(),
+        getUserConnection: jest.fn().mockResolvedValue(mockUserConnection),
+      };
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue({
+        endpoint: 'http://test-server.com',
+      });
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
+      require('~/config').getFlowStateManager.mockReturnValue({});
+      require('~/cache').getLogStores.mockReturnValue({});
+
+      const { getCachedTools, setCachedTools } = require('~/server/services/Config');
+      const { updateMCPServerTools } = require('~/server/services/Config/mcp');
+      getCachedTools.mockResolvedValue({});
+      setCachedTools.mockResolvedValue();
+      updateMCPServerTools.mockResolvedValue();
+
+      require('~/server/services/Tools/mcp').reinitMCPServer.mockResolvedValue({
+        success: true,
+        message: "MCP server 'test-server' reinitialized successfully",
+        serverName: 'test-server',
+        oauthRequired: false,
+        oauthUrl: null,
       });
 
-      getUserPluginAuthValue
-        .mockResolvedValueOnce('test-api-key-value')
-        .mockRejectedValueOnce(new Error('Database error'));
+      const response = await request(app).post('/api/mcp/test-server/reinitialize');
 
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: "MCP server 'test-server' reinitialized successfully",
+        serverName: 'test-server',
+        oauthRequired: false,
+        oauthUrl: null,
+      });
+      expect(mockMcpManager.disconnectUserConnection).toHaveBeenCalledWith(
+        'test-user-id',
+        'test-server',
+      );
+    });
+
+    it('should handle server with custom user variables', async () => {
       const mockUserConnection = {
         fetchTools: jest.fn().mockResolvedValue([]),
       };
 
       const mockMcpManager = {
-        disconnectServer: jest.fn().mockResolvedValue(),
-        mcpConfigs: {},
+        disconnectUserConnection: jest.fn().mockResolvedValue(),
         getUserConnection: jest.fn().mockResolvedValue(mockUserConnection),
       };
 
+      mockRegistryInstance.getServerConfig.mockResolvedValue({
+        endpoint: 'http://test-server.com',
+        customUserVars: {
+          API_KEY: 'some-env-var',
+        },
+      });
       require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
       require('~/config').getFlowStateManager.mockReturnValue({});
       require('~/cache').getLogStores.mockReturnValue({});
+      require('@librechat/api').getUserMCPAuthMap.mockResolvedValue({
+        'mcp:test-server': {
+          API_KEY: 'api-key-value',
+        },
+      });
+      require('~/models').findPluginAuthsByKeys.mockResolvedValue([
+        { key: 'API_KEY', value: 'api-key-value' },
+      ]);
 
       const { getCachedTools, setCachedTools } = require('~/server/services/Config');
+      const { updateMCPServerTools } = require('~/server/services/Config/mcp');
       getCachedTools.mockResolvedValue({});
       setCachedTools.mockResolvedValue();
+      updateMCPServerTools.mockResolvedValue();
+
+      require('~/server/services/Tools/mcp').reinitMCPServer.mockResolvedValue({
+        success: true,
+        message: "MCP server 'test-server' reinitialized successfully",
+        serverName: 'test-server',
+        oauthRequired: false,
+        oauthUrl: null,
+      });
 
       const response = await request(app).post('/api/mcp/test-server/reinitialize');
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-    });
-
-    it('should return failure message when reinitialize completely fails', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': {},
-        },
+      expect(require('@librechat/api').getUserMCPAuthMap).toHaveBeenCalledWith({
+        userId: 'test-user-id',
+        servers: ['test-server'],
+        findPluginAuthsByKeys: require('~/models').findPluginAuthsByKeys,
       });
-
-      const mockMcpManager = {
-        disconnectServer: jest.fn().mockResolvedValue(),
-        mcpConfigs: {},
-        getUserConnection: jest.fn().mockResolvedValue(null),
-      };
-
-      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
-      require('~/config').getFlowStateManager.mockReturnValue({});
-      require('~/cache').getLogStores.mockReturnValue({});
-
-      const { getCachedTools, setCachedTools } = require('~/server/services/Config');
-      const { Constants } = require('librechat-data-provider');
-      getCachedTools.mockResolvedValue({
-        [`existing-tool${Constants.mcp_delimiter}test-server`]: { type: 'function' },
-      });
-      setCachedTools.mockResolvedValue();
-
-      const response = await request(app).post('/api/mcp/test-server/reinitialize');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toBe("Failed to reinitialize MCP server 'test-server'");
     });
   });
 
@@ -984,21 +1256,19 @@ describe('MCP Routes', () => {
   });
 
   describe('GET /:serverName/auth-values', () => {
-    const { loadCustomConfig } = require('~/server/services/Config');
     const { getUserPluginAuthValue } = require('~/server/services/PluginService');
+    // mockRegistryInstance is defined at the top of the file
 
     it('should return auth value flags for server', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': {
-            customUserVars: {
-              API_KEY: 'some-env-var',
-              SECRET_TOKEN: 'another-env-var',
-            },
-          },
+      const mockMcpManager = {};
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue({
+        customUserVars: {
+          API_KEY: 'some-env-var',
+          SECRET_TOKEN: 'another-env-var',
         },
       });
-
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
       getUserPluginAuthValue.mockResolvedValueOnce('some-api-key-value').mockResolvedValueOnce('');
 
       const response = await request(app).get('/api/mcp/test-server/auth-values');
@@ -1017,11 +1287,10 @@ describe('MCP Routes', () => {
     });
 
     it('should return 404 when server is not found in configuration', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'other-server': {},
-        },
-      });
+      const mockMcpManager = {};
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue(null);
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
 
       const response = await request(app).get('/api/mcp/non-existent-server/auth-values');
 
@@ -1032,16 +1301,14 @@ describe('MCP Routes', () => {
     });
 
     it('should handle errors when checking auth values', async () => {
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': {
-            customUserVars: {
-              API_KEY: 'some-env-var',
-            },
-          },
+      const mockMcpManager = {};
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue({
+        customUserVars: {
+          API_KEY: 'some-env-var',
         },
       });
-
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
       getUserPluginAuthValue.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/mcp/test-server/auth-values');
@@ -1057,7 +1324,12 @@ describe('MCP Routes', () => {
     });
 
     it('should return 500 when auth values check throws unexpected error', async () => {
-      loadCustomConfig.mockRejectedValue(new Error('Config loading failed'));
+      const mockMcpManager = {};
+
+      mockRegistryInstance.getServerConfig.mockImplementation(() => {
+        throw new Error('Config loading failed');
+      });
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
 
       const response = await request(app).get('/api/mcp/test-server/auth-values');
 
@@ -1066,14 +1338,12 @@ describe('MCP Routes', () => {
     });
 
     it('should handle customUserVars that is not an object', async () => {
-      const { loadCustomConfig } = require('~/server/services/Config');
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': {
-            customUserVars: 'not-an-object',
-          },
-        },
+      const mockMcpManager = {};
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue({
+        customUserVars: 'not-an-object',
       });
+      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
 
       const response = await request(app).get('/api/mcp/test-server/auth-values');
 
@@ -1097,101 +1367,13 @@ describe('MCP Routes', () => {
     });
   });
 
-  describe('POST /:serverName/reinitialize - Tool Deletion Coverage', () => {
-    it('should handle null cached tools during reinitialize (triggers || {} fallback)', async () => {
-      const { loadCustomConfig, getCachedTools } = require('~/server/services/Config');
-
-      const mockUserConnection = {
-        fetchTools: jest.fn().mockResolvedValue([{ name: 'new-tool', description: 'A new tool' }]),
-      };
-
-      const mockMcpManager = {
-        getUserConnection: jest.fn().mockResolvedValue(mockUserConnection),
-        disconnectServer: jest.fn(),
-        initializeServer: jest.fn(),
-        mcpConfigs: {},
-      };
-      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
-
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': { env: { API_KEY: 'test-key' } },
-        },
-      });
-
-      getCachedTools.mockResolvedValue(null);
-
-      const response = await request(app).post('/api/mcp/test-server/reinitialize').expect(200);
-
-      expect(response.body).toEqual({
-        message: "MCP server 'test-server' reinitialized successfully",
-        success: true,
-        oauthRequired: false,
-        oauthUrl: null,
-        serverName: 'test-server',
-      });
-    });
-
-    it('should delete existing cached tools during successful reinitialize', async () => {
-      const {
-        loadCustomConfig,
-        getCachedTools,
-        setCachedTools,
-      } = require('~/server/services/Config');
-
-      const mockUserConnection = {
-        fetchTools: jest.fn().mockResolvedValue([{ name: 'new-tool', description: 'A new tool' }]),
-      };
-
-      const mockMcpManager = {
-        getUserConnection: jest.fn().mockResolvedValue(mockUserConnection),
-        disconnectServer: jest.fn(),
-        initializeServer: jest.fn(),
-        mcpConfigs: {},
-      };
-      require('~/config').getMCPManager.mockReturnValue(mockMcpManager);
-
-      loadCustomConfig.mockResolvedValue({
-        mcpServers: {
-          'test-server': { env: { API_KEY: 'test-key' } },
-        },
-      });
-
-      const existingTools = {
-        'old-tool_mcp_test-server': { type: 'function' },
-        'other-tool_mcp_other-server': { type: 'function' },
-      };
-      getCachedTools.mockResolvedValue(existingTools);
-
-      const response = await request(app).post('/api/mcp/test-server/reinitialize').expect(200);
-
-      expect(response.body).toEqual({
-        message: "MCP server 'test-server' reinitialized successfully",
-        success: true,
-        oauthRequired: false,
-        oauthUrl: null,
-        serverName: 'test-server',
-      });
-
-      expect(setCachedTools).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'new-tool_mcp_test-server': expect.any(Object),
-          'other-tool_mcp_other-server': { type: 'function' },
-        }),
-        { userId: 'test-user-id' },
-      );
-      expect(setCachedTools).toHaveBeenCalledWith(
-        expect.not.objectContaining({
-          'old-tool_mcp_test-server': expect.anything(),
-        }),
-        { userId: 'test-user-id' },
-      );
-    });
-  });
-
   describe('GET /:serverName/oauth/callback - Edge Cases', () => {
     it('should handle OAuth callback without toolFlowId (falsy toolFlowId)', async () => {
-      const { MCPOAuthHandler } = require('@librechat/api');
+      const { MCPOAuthHandler, MCPTokenStorage } = require('@librechat/api');
+      const mockTokens = {
+        access_token: 'edge-access-token',
+        refresh_token: 'edge-refresh-token',
+      };
       MCPOAuthHandler.getFlowState = jest.fn().mockResolvedValue({
         id: 'test-flow-id',
         userId: 'test-user-id',
@@ -1203,9 +1385,14 @@ describe('MCP Routes', () => {
         clientInfo: {},
         codeVerifier: 'test-verifier',
       });
+      MCPOAuthHandler.completeOAuthFlow = jest.fn().mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockResolvedValue();
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
 
       const mockFlowManager = {
+        getFlowState: jest.fn().mockResolvedValue({ status: 'PENDING' }),
         completeFlow: jest.fn(),
+        deleteFlow: jest.fn().mockResolvedValue(true),
       };
       require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
 
@@ -1220,13 +1407,20 @@ describe('MCP Routes', () => {
         .get('/api/mcp/test-server/oauth/callback?code=test-code&state=test-flow-id')
         .expect(302);
 
+      const basePath = getBasePath();
+
       expect(mockFlowManager.completeFlow).not.toHaveBeenCalled();
-      expect(response.headers.location).toContain('/oauth/success');
+      expect(response.headers.location).toContain(`${basePath}/oauth/success`);
     });
 
     it('should handle null cached tools in OAuth callback (triggers || {} fallback)', async () => {
       const { getCachedTools } = require('~/server/services/Config');
       getCachedTools.mockResolvedValue(null);
+      const { MCPOAuthHandler, MCPTokenStorage } = require('@librechat/api');
+      const mockTokens = {
+        access_token: 'edge-access-token',
+        refresh_token: 'edge-refresh-token',
+      };
 
       const mockFlowManager = {
         getFlowState: jest.fn().mockResolvedValue({
@@ -1239,6 +1433,16 @@ describe('MCP Routes', () => {
         completeFlow: jest.fn(),
       };
       require('~/config').getFlowStateManager.mockReturnValue(mockFlowManager);
+      MCPOAuthHandler.getFlowState.mockResolvedValue({
+        serverName: 'test-server',
+        userId: 'test-user-id',
+        metadata: { serverUrl: 'https://example.com', oauth: {} },
+        clientInfo: {},
+        codeVerifier: 'test-verifier',
+      });
+      MCPOAuthHandler.completeOAuthFlow.mockResolvedValue(mockTokens);
+      MCPTokenStorage.storeTokens.mockResolvedValue();
+      mockRegistryInstance.getServerConfig.mockResolvedValue({});
 
       const mockMcpManager = {
         getUserConnection: jest.fn().mockResolvedValue({
@@ -1253,7 +1457,283 @@ describe('MCP Routes', () => {
         .get('/api/mcp/test-server/oauth/callback?code=test-code&state=test-flow-id')
         .expect(302);
 
-      expect(response.headers.location).toContain('/oauth/success');
+      const basePath = getBasePath();
+
+      expect(response.headers.location).toContain(`${basePath}/oauth/success`);
+    });
+  });
+
+  describe('GET /servers', () => {
+    // mockRegistryInstance is defined at the top of the file
+
+    it('should return all server configs for authenticated user', async () => {
+      const mockServerConfigs = {
+        'server-1': {
+          endpoint: 'http://server1.com',
+          name: 'Server 1',
+        },
+        'server-2': {
+          endpoint: 'http://server2.com',
+          name: 'Server 2',
+        },
+      };
+
+      mockRegistryInstance.getAllServerConfigs.mockResolvedValue(mockServerConfigs);
+
+      const response = await request(app).get('/api/mcp/servers');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(mockServerConfigs);
+      expect(mockRegistryInstance.getAllServerConfigs).toHaveBeenCalledWith('test-user-id');
+    });
+
+    it('should return empty object when no servers are configured', async () => {
+      mockRegistryInstance.getAllServerConfigs.mockResolvedValue({});
+
+      const response = await request(app).get('/api/mcp/servers');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({});
+    });
+
+    it('should return 401 when user is not authenticated', async () => {
+      const unauthApp = express();
+      unauthApp.use(express.json());
+      unauthApp.use((req, _res, next) => {
+        req.user = null;
+        next();
+      });
+      unauthApp.use('/api/mcp', mcpRouter);
+
+      const response = await request(unauthApp).get('/api/mcp/servers');
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({ message: 'Unauthorized' });
+    });
+
+    it('should return 500 when server config retrieval fails', async () => {
+      mockRegistryInstance.getAllServerConfigs.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/api/mcp/servers');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ error: 'Database error' });
+    });
+  });
+
+  describe('POST /servers', () => {
+    it('should create MCP server with valid SSE config', async () => {
+      const validConfig = {
+        type: 'sse',
+        url: 'https://mcp-server.example.com/sse',
+        title: 'Test SSE Server',
+        description: 'A test SSE server',
+      };
+
+      mockRegistryInstance.addServer.mockResolvedValue({
+        serverName: 'test-sse-server',
+        config: validConfig,
+      });
+
+      const response = await request(app).post('/api/mcp/servers').send({ config: validConfig });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        serverName: 'test-sse-server',
+        ...validConfig,
+      });
+      expect(mockRegistryInstance.addServer).toHaveBeenCalledWith(
+        'temp_server_name',
+        expect.objectContaining({
+          type: 'sse',
+          url: 'https://mcp-server.example.com/sse',
+        }),
+        'DB',
+        'test-user-id',
+      );
+    });
+
+    it('should reject stdio config for security reasons', async () => {
+      const stdioConfig = {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+        title: 'Test Stdio Server',
+      };
+
+      const response = await request(app).post('/api/mcp/servers').send({ config: stdioConfig });
+
+      // Stdio transport is not allowed via API - only admins can configure it via YAML
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Invalid configuration');
+    });
+
+    it('should return 400 for invalid configuration', async () => {
+      const invalidConfig = {
+        type: 'sse',
+        // Missing required 'url' field
+        title: 'Invalid Server',
+      };
+
+      const response = await request(app).post('/api/mcp/servers').send({ config: invalidConfig });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Invalid configuration');
+      expect(response.body.errors).toBeDefined();
+    });
+
+    it('should return 400 for SSE config with invalid URL protocol', async () => {
+      const invalidConfig = {
+        type: 'sse',
+        url: 'ws://invalid-protocol.example.com/sse',
+        title: 'Invalid Protocol Server',
+      };
+
+      const response = await request(app).post('/api/mcp/servers').send({ config: invalidConfig });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Invalid configuration');
+    });
+
+    it('should return 500 when registry throws error', async () => {
+      const validConfig = {
+        type: 'sse',
+        url: 'https://mcp-server.example.com/sse',
+        title: 'Test Server',
+      };
+
+      mockRegistryInstance.addServer.mockRejectedValue(new Error('Database connection failed'));
+
+      const response = await request(app).post('/api/mcp/servers').send({ config: validConfig });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ message: 'Database connection failed' });
+    });
+  });
+
+  describe('GET /servers/:serverName', () => {
+    it('should return server config when found', async () => {
+      const mockConfig = {
+        type: 'sse',
+        url: 'https://mcp-server.example.com/sse',
+        title: 'Test Server',
+      };
+
+      mockRegistryInstance.getServerConfig.mockResolvedValue(mockConfig);
+
+      const response = await request(app).get('/api/mcp/servers/test-server');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(mockConfig);
+      expect(mockRegistryInstance.getServerConfig).toHaveBeenCalledWith(
+        'test-server',
+        'test-user-id',
+      );
+    });
+
+    it('should return 404 when server not found', async () => {
+      mockRegistryInstance.getServerConfig.mockResolvedValue(null);
+
+      const response = await request(app).get('/api/mcp/servers/non-existent-server');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual({ message: 'MCP server not found' });
+    });
+
+    it('should return 500 when registry throws error', async () => {
+      mockRegistryInstance.getServerConfig.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/api/mcp/servers/error-server');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ message: 'Database error' });
+    });
+  });
+
+  describe('PATCH /servers/:serverName', () => {
+    it('should update server with valid config', async () => {
+      const updatedConfig = {
+        type: 'sse',
+        url: 'https://updated-mcp-server.example.com/sse',
+        title: 'Updated Server',
+        description: 'Updated description',
+      };
+
+      mockRegistryInstance.updateServer.mockResolvedValue(updatedConfig);
+
+      const response = await request(app)
+        .patch('/api/mcp/servers/test-server')
+        .send({ config: updatedConfig });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(updatedConfig);
+      expect(mockRegistryInstance.updateServer).toHaveBeenCalledWith(
+        'test-server',
+        expect.objectContaining({
+          type: 'sse',
+          url: 'https://updated-mcp-server.example.com/sse',
+        }),
+        'DB',
+        'test-user-id',
+      );
+    });
+
+    it('should return 400 for invalid configuration', async () => {
+      const invalidConfig = {
+        type: 'sse',
+        // Missing required 'url' field
+        title: 'Invalid Update',
+      };
+
+      const response = await request(app)
+        .patch('/api/mcp/servers/test-server')
+        .send({ config: invalidConfig });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Invalid configuration');
+      expect(response.body.errors).toBeDefined();
+    });
+
+    it('should return 500 when registry throws error', async () => {
+      const validConfig = {
+        type: 'sse',
+        url: 'https://mcp-server.example.com/sse',
+        title: 'Test Server',
+      };
+
+      mockRegistryInstance.updateServer.mockRejectedValue(new Error('Update failed'));
+
+      const response = await request(app)
+        .patch('/api/mcp/servers/test-server')
+        .send({ config: validConfig });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ message: 'Update failed' });
+    });
+  });
+
+  describe('DELETE /servers/:serverName', () => {
+    it('should delete server successfully', async () => {
+      mockRegistryInstance.removeServer.mockResolvedValue(undefined);
+
+      const response = await request(app).delete('/api/mcp/servers/test-server');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ message: 'MCP server deleted successfully' });
+      expect(mockRegistryInstance.removeServer).toHaveBeenCalledWith(
+        'test-server',
+        'DB',
+        'test-user-id',
+      );
+    });
+
+    it('should return 500 when registry throws error', async () => {
+      mockRegistryInstance.removeServer.mockRejectedValue(new Error('Deletion failed'));
+
+      const response = await request(app).delete('/api/mcp/servers/error-server');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ message: 'Deletion failed' });
     });
   });
 });

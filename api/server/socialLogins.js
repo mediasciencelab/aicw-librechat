@@ -1,19 +1,85 @@
 const passport = require('passport');
 const session = require('express-session');
+const { isEnabled } = require('@librechat/api');
+const { CacheKeys } = require('librechat-data-provider');
+const { logger, DEFAULT_SESSION_EXPIRY } = require('@librechat/data-schemas');
 const {
+  openIdJwtLogin,
+  facebookLogin,
+  discordLogin,
   setupOpenId,
   googleLogin,
   githubLogin,
-  discordLogin,
-  facebookLogin,
   appleLogin,
   setupSaml,
-  openIdJwtLogin,
 } = require('~/strategies');
-const { isEnabled } = require('~/server/utils');
-const { logger } = require('~/config');
 const { getLogStores } = require('~/cache');
-const { CacheKeys } = require('librechat-data-provider');
+
+/**
+ * Determines if secure cookies should be used.
+ * Only use secure cookies in production when not on localhost.
+ * @returns {boolean}
+ */
+function shouldUseSecureCookie() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const domainServer = process.env.DOMAIN_SERVER || '';
+
+  let hostname = '';
+  if (domainServer) {
+    try {
+      const normalized = /^https?:\/\//i.test(domainServer)
+        ? domainServer
+        : `http://${domainServer}`;
+      const url = new URL(normalized);
+      hostname = (url.hostname || '').toLowerCase();
+    } catch {
+      // Fallback: treat DOMAIN_SERVER directly as a hostname-like string
+      hostname = domainServer.toLowerCase();
+    }
+  }
+
+  const isLocalhost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname.endsWith('.localhost');
+
+  return isProduction && !isLocalhost;
+}
+
+/**
+ * Configures OpenID Connect for the application.
+ * @param {Express.Application} app - The Express application instance.
+ * @returns {Promise<void>}
+ */
+async function configureOpenId(app) {
+  logger.info('Configuring OpenID Connect...');
+  const sessionExpiry = Number(process.env.SESSION_EXPIRY) || DEFAULT_SESSION_EXPIRY;
+  const sessionOptions = {
+    secret: process.env.OPENID_SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: getLogStores(CacheKeys.OPENID_SESSION),
+    cookie: {
+      maxAge: sessionExpiry,
+      secure: shouldUseSecureCookie(),
+    },
+  };
+  app.use(session(sessionOptions));
+  app.use(passport.session());
+
+  const config = await setupOpenId();
+  if (!config) {
+    logger.error('OpenID Connect configuration failed - strategy not registered.');
+    return;
+  }
+
+  if (isEnabled(process.env.OPENID_REUSE_TOKENS)) {
+    logger.info('OpenID token reuse is enabled.');
+    passport.use('openidJwt', openIdJwtLogin(config));
+  }
+  logger.info('OpenID Connect configured successfully.');
+}
 
 /**
  *
@@ -44,21 +110,7 @@ const configureSocialLogins = async (app) => {
     process.env.OPENID_SCOPE &&
     process.env.OPENID_SESSION_SECRET
   ) {
-    logger.info('Configuring OpenID Connect...');
-    const sessionOptions = {
-      secret: process.env.OPENID_SESSION_SECRET,
-      resave: false,
-      saveUninitialized: false,
-      store: getLogStores(CacheKeys.OPENID_SESSION),
-    };
-    app.use(session(sessionOptions));
-    app.use(passport.session());
-    const config = await setupOpenId();
-    if (isEnabled(process.env.OPENID_REUSE_TOKENS)) {
-      logger.info('OpenID token reuse is enabled.');
-      passport.use('openidJwt', openIdJwtLogin(config));
-    }
-    logger.info('OpenID Connect configured.');
+    await configureOpenId(app);
   }
   if (
     process.env.SAML_ENTRY_POINT &&
@@ -67,11 +119,16 @@ const configureSocialLogins = async (app) => {
     process.env.SAML_SESSION_SECRET
   ) {
     logger.info('Configuring SAML Connect...');
+    const sessionExpiry = Number(process.env.SESSION_EXPIRY) || DEFAULT_SESSION_EXPIRY;
     const sessionOptions = {
       secret: process.env.SAML_SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
       store: getLogStores(CacheKeys.SAML_SESSION),
+      cookie: {
+        maxAge: sessionExpiry,
+        secure: shouldUseSecureCookie(),
+      },
     };
     app.use(session(sessionOptions));
     app.use(passport.session());
