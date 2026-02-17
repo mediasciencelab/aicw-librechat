@@ -17,7 +17,7 @@ export function Storage({ stack }: sst.StackContext) {
   //
   // The restore script writes the snapshot ID to .snapshot-id.{stage} before deploying.
   let snapshotId: string | undefined;
-  const snapshotFile = path.join(process.cwd(), `.snapshot-id.${stack.stage}`);
+  const snapshotFile = path.join(__dirname, '..', '..', `.snapshot-id.${stack.stage}`);
 
   if (fs.existsSync(snapshotFile)) {
     snapshotId = fs.readFileSync(snapshotFile, 'utf8').trim();

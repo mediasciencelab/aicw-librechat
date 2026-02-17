@@ -5,6 +5,7 @@
   "workspaces": [
     "api",
     "client",
+    "infra",
     "packages/*"
   ],
   "scripts": {
@@ -90,7 +91,8 @@
     "migrate:prompt-permissions:dry-run": "node config/migrate-prompt-permissions.js --dry-run",
     "migrate:prompt-permissions": "node config/migrate-prompt-permissions.js",
     "migrate:prompt-permissions:batch": "node config/migrate-prompt-permissions.js --batch-size=50",
-    "dev": "sst bind next dev"
+    "dev": "pnpm --workspace=infra exec -- sst bind next dev",
+    "sst": "pnpm --workspace=infra exec -- sst"
   },
   "repository": {
     "type": "git",
@@ -129,10 +131,7 @@
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.0",
     "prettier-plugin-tailwindcss": "^0.6.11",
-    "typescript-eslint": "^8.24.0",
-    "sst": "^2",
-    "aws-cdk-lib": "2.179.0",
-    "constructs": "10.3.0"
+    "typescript-eslint": "^8.24.0"
   },
   "overrides": {
     "axios": "1.12.1",
@@ -162,6 +161,7 @@
       "data/",
       "client/",
       "admin/",
+      "infra/",
       "packages/"
     ]
   }

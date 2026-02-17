@@ -15,3 +15,8 @@ docs
 
 # Ignore all hidden files
 .*
+
+# Mediasci
+infra
+stacks
+# End Mediasci

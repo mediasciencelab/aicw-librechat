@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$stage" ]]; then
-  echo "No stage provided and no stage found in .sst/stage"
+  echo "No stage provided and no stage found in infra/.sst/stage"
   exit 1
 else
   echo "Stage: $stage"

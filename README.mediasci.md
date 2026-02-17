@@ -231,8 +231,8 @@ You can use scripts in the `scripts` directory to remotely manage users on the E
 - AWS CLI configured with permissions for EC2, Systems Manager Parameter Store, and KMS
 - SSH access to the target environment's EC2 instance
 
-**Stage selection:** All scripts will by default use the stage set in the `.sst/stage` file. To
-explicitly use a specific stage, use the `-s` flag on each command. If the `.sst/stage` file
+**Stage selection:** All scripts will by default use the stage set in the `infra/.sst/stage` file. To
+explicitly use a specific stage, use the `-s` flag on each command. If the `infra/.sst/stage` file
 doesn't exist, you must use the `-s` flag.
 
 ## Adding SSH key to agent
@@ -240,7 +240,7 @@ doesn't exist, you must use the `-s` flag.
 Before running any of the scripts, you need to add the SSH key to the agent. This is done using
 the `scripts/ssh-add-instance.sh`. The SSH key is specific to each environment. Like all
 commands, you can use the `-s` flag to specify the environment or it will attempt to use the
-stage in the `.sst/stage` file.
+stage in the `infra/.sst/stage` file.
 
 **Example:**
 
@@ -253,7 +253,7 @@ stage in the `.sst/stage` file.
 One can simply SSH to the instance using the `scripts/ssh-instance.sh` script. This assumes you
 have already added the SSH key to the agent using the `ssh-add-instance.sh` script. Like all
 commands, you can use the `-s` flag to specify the environment or it will attempt to use the
-stage in the `.sst/stage` file.
+stage in the `infra/.sst/stage` file.
 
 **Example:**
 
@@ -319,7 +319,7 @@ You can create EBS snapshots of your environment's storage volume using the back
 ```
 
 **Options:**
-- `-s <stage>` - Specify the environment stage (uses file `.sst/stage` if not already written)
+- `-s <stage>` - Specify the environment stage (uses file `infra/.sst/stage` if not already written)
 - `-d <description>` - Custom snapshot description (optional)
 - `--no-stop` - Skip stopping/starting the instance (may result in inconsistent snapshot)
 
