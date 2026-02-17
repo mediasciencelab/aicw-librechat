@@ -44,15 +44,12 @@ docker compose -f docker-compose.mediasci.yml build
 ./scripts/stop-local-librechat.sh
 ```
 
-**Package Management:** The project uses pnpm for development but the Dockerfile uses npm. If you
-encounter dependency issues during Docker builds, ensure both lock files are synchronized:
+**Package Management:** The project maintains separate lock files for different purposes:
+- `pnpm-lock.yaml` — used for local development and deployment (`pnpm install`)
+- `package-lock.json` — used for Docker builds (`npm ci`) and should be kept in sync with upstream
 
-```shell
-./scripts/update-lockfiles.sh
-```
-
-This script generates both `pnpm-lock.yaml` and `package-lock.json` files to maintain
-compatibility between the development environment (pnpm) and Docker builds (npm).
+These lock files are managed independently. Do not regenerate `package-lock.json` from
+`package.json` — it should reflect the upstream dependency resolution.
 
 ### EC2 AMI
 
@@ -297,7 +294,6 @@ environment's EC2 instance.
 * `scripts/restore-db-snapshot.sh` - Restore an environment from an EBS snapshot.
 
 ### Development Tools
-* `scripts/update-lockfiles.sh` - Generate both npm and pnpm lock files for package compatibility.
 * `scripts/promote-ami.sh` - Promote an AMI from one environment to another.
 * `scripts/start-local-librechat.sh` - Start LibreChat locally using docker-compose.mediasci.yml.
 * `scripts/stop-local-librechat.sh` - Stop the local LibreChat development environment.
