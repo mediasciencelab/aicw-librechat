@@ -91,8 +91,8 @@
     "migrate:prompt-permissions:dry-run": "node config/migrate-prompt-permissions.js --dry-run",
     "migrate:prompt-permissions": "node config/migrate-prompt-permissions.js",
     "migrate:prompt-permissions:batch": "node config/migrate-prompt-permissions.js --batch-size=50",
-    "dev": "pnpm --workspace=infra exec -- sst bind next dev",
-    "sst": "pnpm --workspace=infra exec -- sst"
+    "dev": "pnpm --filter infra exec -- sst bind next dev",
+    "sst": "pnpm --filter infra exec -- sst"
   },
   "repository": {
     "type": "git",

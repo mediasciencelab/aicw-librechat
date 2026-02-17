@@ -3,7 +3,10 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as sst from 'sst/constructs';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { setStandardTags } from './tags';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function Storage({ stack }: sst.StackContext) {
   setStandardTags(stack);
