@@ -14,6 +14,8 @@ sudo docker pull getmeili/meilisearch:v1.12.3
 
 cp /var/tmp/firstrun.sh /home/ubuntu/firstrun.sh
 sudo chmod +x /home/ubuntu/firstrun.sh
+cp /var/tmp/fetch-secrets.sh /home/ubuntu/fetch-secrets.sh
+sudo chmod +x /home/ubuntu/fetch-secrets.sh
 sudo cp /var/tmp/libre-chat.service /etc/systemd/system/libre-chat.service
 cp /var/tmp/librechat.mediasci.yaml /home/ubuntu/librechat.yaml
 

@@ -92,6 +92,11 @@ build {
   }
 
   provisioner "file" {
+    destination = "/var/tmp/fetch-secrets.sh"
+    source      = "${path.root}/files/fetch-secrets.sh"
+  }
+
+  provisioner "file" {
     destination = "/var/tmp/libre-chat.service"
     source      = "${path.root}/files/libre-chat.service"
   }

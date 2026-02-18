@@ -10,6 +10,7 @@ LimitNOFILE    = 4096
 RestartSec     = 5s
 StandardOutput = append:/var/log/errors.log
 StandardError  = append:/var/log/errors.log
+ExecStartPre   = /home/ubuntu/fetch-secrets.sh
 ExecStart      = /usr/bin/docker compose -f /home/ubuntu/docker-compose.mediasci.yml up -d --pull never
 
 [Install]
