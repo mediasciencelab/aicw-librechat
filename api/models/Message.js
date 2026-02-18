@@ -2,6 +2,9 @@ const { z } = require('zod');
 const { logger } = require('@librechat/data-schemas');
 const { createTempChatExpirationDate } = require('@librechat/api');
 const { Message } = require('~/db/models');
+// MEDIASCI-MODSTART
+const { enforceMaxRetention } = require('./mediasciChatUtils');
+// MEDIASCI-MODEND
 
 const idSchema = z.string().uuid();
 
@@ -66,6 +69,11 @@ async function saveMessage(req, params, metadata) {
     } else {
       update.expiredAt = null;
     }
+
+    // MEDIASCI-MODSTART
+    // Enforce maximum retention period
+    update.expiredAt = enforceMaxRetention(update.expiredAt);
+    // MEDIASCI-MODEND
 
     if (update.tokenCount != null && isNaN(update.tokenCount)) {
       logger.warn(

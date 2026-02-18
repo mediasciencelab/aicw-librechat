@@ -2,6 +2,9 @@ const { logger } = require('@librechat/data-schemas');
 const { createTempChatExpirationDate } = require('@librechat/api');
 const { getMessages, deleteMessages } = require('./Message');
 const { Conversation } = require('~/db/models');
+// MEDIASCI-MODSTART
+const { enforceMaxRetention } = require('./mediasciChatUtils');
+// MEDIASCI-MODEND
 
 /**
  * Searches for a conversation by conversationId and returns a lean document with only conversationId and user.
@@ -111,6 +114,11 @@ module.exports = {
       } else {
         update.expiredAt = null;
       }
+
+      // MEDIASCI-MODSTART
+      // Enforce maximum retention period
+      update.expiredAt = enforceMaxRetention(update.expiredAt);
+      // MEDIASCI-MODEND
 
       /** @type {{ $set: Partial<TConversation>; $unset?: Record<keyof TConversation, number> }} */
       const updateOperation = { $set: update };
